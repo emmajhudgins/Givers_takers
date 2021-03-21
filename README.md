@@ -1,7 +1,7 @@
 _Repo to accompany_
 # Givers and takers: origin and recipient regions of biological invasion costs
 
-###  _Emma J. Hudgins\*, Phillip J. Haubrock\*, Ross N. Cuthbert\*, Alok Bang, Elizabeta Briski,  Christophe Diagne, Syrmalenia Kotronaki, Melina Kourantidou, Desika Moodley, Dat Nguyen, Nigel Taylor, Franck Courchamp_
+###  _Emma J. Hudgins\*, Phillip J. Haubrock\*, Ross N. Cuthbert\*, Alok Bang, Elizabeta Briski,  Christophe Diagne, Syrmalenia Kotronaki, Melina Kourantidou, Desika Moodley, Dat Nguyen, Nigel Taylor, Anna J. Turbelin,& Franck Courchamp_
 
 > code written by Dat Nguyen and Emma J Hudgins
 
