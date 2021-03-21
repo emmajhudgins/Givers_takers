@@ -1,5 +1,9 @@
-# Process and description of files and scripts used to get native ranges
-# written by Dat Nguyen and Emma J Hudgins
+_Repo to accompany_
+# Givers and takers: origin and recipient regions of biological invasion costs
+
+###  _Emma J. Hudgins\*, Phillip J. Haubrock\*, Ross N. Cuthbert\*, Alok Bang, Elizabeta Briski,  Christophe Diagne, Syrmalenia Kotronaki, Melina Kourantidou, Desika Moodley, Dat Nguyen, Nigel Taylor, Franck Courchamp_
+
+> code written by Dat Nguyen and Emma J Hudgins
 
 ## SCRIPTS ##
 get_range_EH.R
@@ -11,12 +15,12 @@ native_ranges_countriesnew.R
 
 see our extended InvaCost region-to-country designation:
   - 6 unique cases were manually mapped:
-    > kosovo = "Europe"
-    > tropical america = "Central America"
-    > pacific northwest = "Asia"
-    > north america = "North America"
-    > atlantic coast (north america) = "North America"
-    > indian ocean - western = "Africa"
+    > kosovo = "Europe"  
+    > tropical america = "Central America"  
+    > pacific northwest = "Asia"  
+    > north america = "North America"  
+    > atlantic coast (north america) = "North America"  
+    > indian ocean - western = "Africa"  
 
 data_cleaning.R
 - joins double-checked origin list (givers_takers_doublecheck.csv) to invacost data
