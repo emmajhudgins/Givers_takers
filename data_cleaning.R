@@ -56,9 +56,17 @@ invacost<-subset(invacost, grepl("Unit", invacost$Spatial_scale)==F)
 invacost<-subset(invacost, Geographic_region!="Diverse/Unspecified")
 invacost<-invacost[,c(1,3,7,8,12:21,27:31,36,37,45,46,52:55)]
 origin<-subset(origin, Disease.Agent..to.remove.!=1)
-origin<-subset(origin, Domesticated..to.set.as.diverse.!=1)
-invacost_origin<-merge(invacost, origin[,c(1:4,13:248)], by="Species", all.x=T)
+origin<-subset(origin, is.na(origin$Domesticated..to.set.as.diverse.)==T)
+invacost_origin<-merge(invacost, origin[,c(1:4,13:248)], by="Species")
 write.csv(invacost_origin, file="origin_invacost_nonexpanded.csv", row.names=F)
 invacost_origin<-subset(invacost_origin, is.na(invacost_origin$Probable_starting_year_adjusted)==F)
 invacost_origin_expanded<-expandYearlyCosts(invacost_origin, 'Probable_starting_year_adjusted', "Probable_ending_year_adjusted")
 write.csv(invacost_origin_expanded, file='invacost_origin_expanded.csv', row.names=F)
+
+
+length(unique(invacost_origin_expanded$Cost_ID))
+length(unique(invacost_origin_expanded$Reference_ID))
+length(unique(invacost_origin_expanded$Species))
+length(unique(invacost_origin_expanded$Official_country))
+length(which(colSums(invacost_origin_expanded[,37:266])>0))
+
