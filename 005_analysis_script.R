@@ -5,6 +5,7 @@ require(here)
 require(ggplot2)
 require(mgsub)
 require(countrycode)
+require(gridExtra)
 setwd(paste0(here(), "/data/"))
 options(scipen=999)
 
@@ -90,6 +91,15 @@ for (i in 1:length(region)){
   }
 }
 
+for (reg in region)
+{
+  cont_give<-ggplot(subset(db, Origin_cont==reg), aes(x=TenYear,y=cost))+
+    geom_histogram(stat="identity",color="black", fill="lightblue")+
+    theme_bw()+theme_classic()
+  cont_give
+}
+
+
 stwist<-read.table('sTwist_database.csv', header=T)
 colnames(stwist)[3]<-'Species'
 colnames(stwist)[1]<-"Official_country"
@@ -104,28 +114,43 @@ stwist$Destin_cont<-continent$Geographic_region2[match(stwist$code,continent$cod
 
 stwist$TenYear<-signif(stwist$eventDate, digits=3)
 stwist<-subset(stwist, eventDate>1500)#use post-colonial invasions
-stwist_cont<-aggregate(locationID~Destin_cont+Species+TenYear,data=stwist,FUN=length)
-
-stwist<-stwist %>%
-  mutate(N = 1) # qualifying factor 
-stwist<-stwist %>%
-  group_by(Species) %>%
-  mutate(N = N / n()) # number of species qualified per origin/destination
 domesticated<-c('Felis catus', 'Canis lupus', 'Ovis aries', 'Camelus dromedarius','Sus scrofa','Equus caballus','Equus asinus', 'Mustela furo','Capra hircus')
 for (dom in domesticated)
 {
-stwist<-stwist[-grepl(dom, stwist$Species)]
+  stwist<-stwist[-grep(dom, stwist$scientificName)]
 }
-### merge databases##
-allcountry_spp<-merge(invacost_cln, stwist, by=c("Species", "code"), all.x=T)
-allcountry_spp<-unique(allcountry_spp)
-allcountry_spp<-allcountry_spp[,c(1:17,22)]# remove unnecessary columns
-colnames(allcountry_spp)[c(11,17)]<-c("Official_country","Cost.USD")
+stwist_cont<-aggregate(locationID~Destin_cont+Species+TenYear,data=stwist,FUN=length)
+stwist_cont<-subset(stwist_cont, Species%in%expanded$Species)
+stwist_cont<-stwist_cont %>%
+  mutate(N = 1) # qualifying factor 
+stwist_cont<-stwist_cont %>%
+  group_by(Species) %>%
+  mutate(N = N / n()) # number of species qualified per origin/destination
 
+st <-data.frame((stwist_cont[,c("Destin_cont", "TenYear", "N")])%>%group_by(Destin_cont, TenYear)%>%summarise_at('N', sum))
+
+region <- unique(st$Destin_cont)
+tempo <- unique(expanded$TenYear)
+
+for (reg in region){
+
+  d_sub <- dplyr::filter(st, Destin_cont == reg)
+  for (j in 1:length(tempo)){
+    tp <- tempo[j]
+    if(isTRUE(tp %in% d_sub$TenYear))
+      next
+    st <- add_row(st, Destin_cont = reg, TenYear = tp, N = 0)
+  }
+}
+plots<-list()
+i=1
 for (reg in region)
 {
-cont_give<-ggplot(subset(db, Origin_cont==reg), aes(x=TenYear,y=cost))+
-  geom_histogram(stat="identity",color="black", fill="lightblue")+
-  theme_bw()+theme_classic()
-cont_give
+  plots[[i]]<-ggplot(subset(st, Destin_cont==reg), aes(x=TenYear,y=N))+
+                 geom_histogram(stat="identity",color="black", fill="lightblue")+theme_bw()+theme_classic()+scale_y_continuous(limits=range(st$N))+labs(title=reg)+xlab("Time")+ylab("Species")
+  i=i+1
 }
+
+pdf(file='sTwist_receivers.pdf')
+grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
+dev.off()
