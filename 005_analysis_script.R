@@ -26,7 +26,7 @@ for (i in 1:nrow(data))
   data$origin[i]<-paste(colnames(data)[32:37][which(data[i,32:37]==1)], collapse=";")
 }
 
-data<-data[,c(1:31, 269:270)]
+data<-data[,c(1:31, 283:284)]
 colnames(data)[32:33]<-c("Destin_cont", "Origin_cont")
 data$Origin_cont[which(data$Species=='Ephestia kuehniella')]<-"AS"
 data$Origin_cont[which(data$Species=='Rumex lunaria')]<-"EUR"
@@ -63,6 +63,13 @@ aggregate(mil~Destin_cont,data=expanded,FUN=sum)
 aggregate(mil~Origin_cont,data=expanded,FUN=sum)
 aggregate(mil~Origin_cont*Destin_cont,data=expanded,FUN=sum)
 
+byspp<-expanded%>%group_by(Species)%>%mutate(num=1/length(N))
+aggregate(num~Destin_cont,data=byspp,FUN=sum)
+aggregate(num~Origin_cont,data=byspp,FUN=sum)
+aggregate(num~Origin_cont*Destin_cont,data=byspp,FUN=sum)
+
+
+
 region <- unique(expanded$Origin_cont)
 tempo <- unique(expanded$TenYear)
 
@@ -91,16 +98,119 @@ for (i in 1:length(region)){
   }
 }
 
-for (reg in region)
+
+Take <- expanded %>% group_by(Destin_cont, TenYear) %>% summarise(cost=sum(mil))
+db2 <- data.frame(Take[,c("Destin_cont", "TenYear", "cost")])
+
+for (i in 1:length(region)){
+  
+  or_ct <- region[i]
+  d_sub <- dplyr::filter(db2, Destin_cont == or_ct)
+  
+  for (j in 1:length(tempo)){
+    tp <- tempo[j]
+    if(isTRUE(tp %in% d_sub$TenYear))
+      next
+    db2 <- add_row(db2, Destin_cont = or_ct, TenYear = tp, cost = 0)
+  }
+}
+
+region_st<-c("Africa",        "Asia"  ,        "Europe"  ,      "North America",
+"Oceania" ,      "South America") #taken from stwist
+region_cd<-c('AF','AS','EUR', "NAm", "OC", "SA")#corresponding codes
+plots<-list()
+i=1
+for (reg in region_cd)
 {
-  cont_give<-ggplot(subset(db, Origin_cont==reg), aes(x=TenYear,y=cost))+
+  
+  plots[[i]]<-ggplot(subset(db, Origin_cont==reg), aes(x=TenYear,y=cost))+
     geom_histogram(stat="identity",color="black", fill="lightblue")+
-    theme_bw()+theme_classic()
-  cont_give
+    theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("Cost")
+  i=i+1
+}
+pdf(file='invacost_givers.pdf')
+grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
+dev.off()
+
+plots<-list()
+i=1
+for (reg in region_cd)
+{
+  
+  plots[[i]]<-ggplot(subset(db2, Destin_cont==reg), aes(x=TenYear,y=cost))+
+    geom_histogram(stat="identity",color="black", fill="lightblue")+
+    theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("Cost")
+  i=i+1
+}
+pdf(file='invacost_receivers.pdf')
+grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
+dev.off()
+
+Give_spp <- df %>% group_by(Origin_cont, TenYear) %>% summarise(spp=sum(N))
+
+db3 <- data.frame(Give_spp[,c("Origin_cont", "TenYear", "spp")])
+
+for (i in 1:length(region)){
+  
+  or_ct <- region[i]
+  d_sub <- dplyr::filter(db3, Origin_cont == or_ct)
+  
+  for (j in 1:length(tempo)){
+    tp <- tempo[j]
+    if(isTRUE(tp %in% d_sub$TenYear))
+      next
+    db3 <- add_row(db3, Origin_cont = or_ct, TenYear = tp, spp = 0)
+  }
 }
 
 
+Take_spp <- df %>% group_by(Destin_cont, TenYear) %>% summarise(spp=sum(N))
+
+db4 <- data.frame(Take_spp[,c("Destin_cont", "TenYear", "spp")])
+
+for (i in 1:length(region)){
+  
+  or_ct <- region[i]
+  d_sub <- dplyr::filter(db4, Destin_cont == or_ct)
+  
+  for (j in 1:length(tempo)){
+    tp <- tempo[j]
+    if(isTRUE(tp %in% d_sub$TenYear))
+      next
+    db4 <- add_row(db4, Destin_cont = or_ct, TenYear = tp, spp = 0)
+  }
+}
+
+plots<-list()
+i=1
+for (reg in region_cd)
+{
+  
+  plots[[i]]<-ggplot(subset(db3, Origin_cont==reg), aes(x=TenYear,y=spp))+
+    geom_histogram(stat="identity",color="black", fill="lightblue")+
+    theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("No. Species")
+  i=i+1
+}
+pdf(file='invacost_spp_givers.pdf')
+grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
+dev.off()
+
+plots<-list()
+i=1
+for (reg in region_cd)
+{
+  
+  plots[[i]]<-ggplot(subset(db4, Destin_cont==reg), aes(x=TenYear,y=spp))+
+    geom_histogram(stat="identity",color="black", fill="lightblue")+
+    theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("No. species")
+  i=i+1
+}
+pdf(file='invacost_spp_receivers.pdf')
+grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
+dev.off()
+
 stwist<-read.table('sTwist_database.csv', header=T)
+
 colnames(stwist)[3]<-'Species'
 colnames(stwist)[1]<-"Official_country"
 stwist$eventDate<-gsub(";.*","",stwist$eventDate )
@@ -133,7 +243,7 @@ region <- unique(st$Destin_cont)
 tempo <- unique(expanded$TenYear)
 
 for (reg in region){
-
+  
   d_sub <- dplyr::filter(st, Destin_cont == reg)
   for (j in 1:length(tempo)){
     tp <- tempo[j]
@@ -147,10 +257,78 @@ i=1
 for (reg in region)
 {
   plots[[i]]<-ggplot(subset(st, Destin_cont==reg), aes(x=TenYear,y=N))+
-                 geom_histogram(stat="identity",color="black", fill="lightblue")+theme_bw()+theme_classic()+scale_y_continuous(limits=range(st$N))+labs(title=reg)+xlab("Time")+ylab("Species")
+    geom_histogram(stat="identity",color="black", fill="lightblue")+theme_bw()+theme_classic()+scale_y_continuous(limits=range(st$N))+labs(title=reg)+xlab("Time")+ylab("Species")
   i=i+1
 }
 
 pdf(file='sTwist_receivers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
+
+socioeco_dat<-readRDS('soc_econ_country.rds') # From Sardain, Leung et al. Nature Sustainability
+
+
+###trade data
+
+alldata<-read.csv("invacost_origin_expanded_DN.csv") # continent column manually fixed by Dat Nguyen
+origin_countries<-colnames(alldata)[38:267]
+destin_countries<-countrycode(unique(data$Official_country), 'country.name', 'iso3c')
+# trade<-matrix(0, length(origin_countries),length(destin_countries))
+# baci_code<-c(92) # oldest historical data
+# baci_country<-read.csv('~/Downloads/country_codes_V202102.csv')
+# 
+# baci_dat<-read.csv(paste0("~/Downloads/BACI_HS92_V202102.csv"))
+# for (j in 1:length(destin_countries))
+# {
+#   for (i in 1:length(origin_countries))
+#   {
+#     qq<-baci_dat[which(baci_dat$i==baci_country$country_code[which(baci_country$iso_3digit_alpha%in%origin_countries[i])] & baci_dat$j%in%baci_country$country_code[which(baci_country$iso_3digit_alpha%in%destin_countries[j])]),]
+#     if(nrow(qq)>0)
+#     {trade[i,j]<-trade[i,j]+sum(qq$q, na.rm=T)}
+#   }
+# }
+# saveRDS(trade, "../output/trade.RDS")
+# trade_historical<-matrix(NA, length(origin_countries),length(destin_countries))
+# 
+#  baci_dat<-read.csv(paste0("~/Downloads/BACI_HS92_Y1995_V202102.csv"))
+#     for (j in 1:length(destin_countries))
+#     {
+#       for (i in 1:length(origin_countries))
+#       {
+#         qq<-baci_dat[which(baci_dat$i==baci_country$country_code[which(baci_country$iso_3digit_alpha%in%origin_countries[i])] & baci_dat$j%in%baci_country$country_code[which(baci_country$iso_3digit_alpha%in%destin_countries[j])]),]
+#         if(nrow(qq)>0)
+#         {trade_historical[i,j]<-trade_historical[i,j]+sum(qq$q, na.rm=T)}
+#       }
+#     }
+# saveRDS(trade_historical, "../output/trade_historical.RDS")
+
+trade<-readRDS('../output/trade.RDS')
+trade_historical<-readRDS('../output/trade_historical.RDS')
+alldata$trade<-0
+alldata$trade_historical<-0
+alldata$code<-countrycode(alldata$Official_country, "country.name", 'iso3c')
+for (i in 1:nrow(alldata))
+{
+  orig<-colnames(alldata)[which(alldata[i,38:267]==1)+37]
+  dest<-alldata$code[i]
+  alldata$trade_historical[i]<-sum(trade[which(origin_countries%in%orig), which(destin_countries==dest)],na.rm=T)
+  alldata$trade_historical[i]<-sum(trade_historical[which(origin_countries%in%orig), which(destin_countries==dest)],na.rm=T)
+}
+
+library(rvest)
+sr<-read_html('https://rainforests.mongabay.com/03highest_biodiversity.htm')
+sr_tab<-html_table(sr)[[1]]
+for (i in 2:7)
+{
+  sr_tab[,i]<-gsub(",", "",sr_tab[,i])
+  
+  sr_tab[,i]<-as.numeric(sr_tab[,i])
+}
+sr_tab$code<-countrycode(sr_tab$Country, 'country.name', 'iso3c')
+sr_tab$tot_sr<-rowSums(sr_tab[,2:7], na.rm=T)
+
+alldata$species_richness<-sr_tab$tot_sr[match(alldata$code,sr_tab$code)]
+
+alldata$logcost<-log(alldata$Cost_estimate_per_year_2017_USD_exchange_rate)
+
+

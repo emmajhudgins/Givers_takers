@@ -1,21 +1,33 @@
 require(invacost)
 require(dplyr)
 require(countrycode)
+require(here)
+setwd(paste0(here(),'/data/'))
 data(invacost)
-
+island_nations<-read.csv('island_nations.csv')
 origin<-read.csv('givers_takers_doublecheck.csv')
 origin<-subset(origin, Continents !="UNK")
 origin<-subset(origin, grepl("spp", origin$Species)==F)
-##Correct for some remaining islands and unrecognized ISO3C countries
+##Correct for some remaining unrecognized ISO3C countries, Emma updated such that any overseas territory that is closer to another continent has its own country code and is affiliated with the closer continent.
+origin$Countries<-gsub("Baleares", "Spain",origin$Countries )
+origin$Countries<-gsub("Is\\.", "Islands",origin$Countries )
+origin$Countries<-gsub("Leeward Islands", "Guadeloupe; Antigua and Barbuda; Saint Kitts and Nevis; Saint Martin; Virgin Islands",origin$Countries)
+origin$Countries<-gsub("Laccadive Islands", "India",origin$Countries)
+origin$Countries<-gsub("Windward Islands", "Dominica; Saint Lucia; Saint Vincent; Grenada",origin$Countries)
+origin$Countries<-gsub("East Aegean Islands", "",origin$Countries)
+origin$Countries<-gsub("Netherlands Antilles", "Bonaire, Curacao, Saba, Sint Eustatius, Sint Maarten",origin$Countries)
+origin$Countries<-gsub("East Aegean Islands", "Greece",origin$Countries)
+origin$Countries<-gsub("Corse", "France",origin$Countries)
+origin$Countries<-gsub("Kriti", "Greece",origin$Countries)
+origin$Countries<-gsub("Kuril Islands", "Russia",origin$Countries)
+origin$Countries<-gsub("Andaman Islands", "India",origin$Countries)
+origin$Countries<-gsub("Nicobar Islands", "India",origin$Countries)
 origin$Countries<-gsub("Galapagos", "Chile",origin$Countries )
-origin$Countries<-gsub("Canary Is\\.", "Spain",origin$Countries )
-origin$Countries<-gsub("Canary Is\\.", "Spain",origin$Countries )
 origin$Countries<-gsub("Kosovo", "Serbia",origin$Countries )
 origin$Countries<-gsub("Azores", "Portugal",origin$Countries )
 origin$Countries<-gsub("Tibet", "China",origin$Countries )
 origin$Countries<-gsub("Tadjikistan", "Tajikistan",origin$Countries )
-origin$Countries<-gsub("Baleares", "Spain",origin$Countries )
-origin$Countries<-gsub("Guiana", "France",origin$Countries )
+origin$Countries<-gsub("Malaya", "Singapore;Philippines;Myanmar;Malaysia",origin$Countries )
 
 origin$Countries<-gsub("Yugoslavia", "Bosnia and Herzegovina, Croatia, Macedonia, Montenegro, Serbia, Slovenia", origin$Countries )
 origin$Countries<-gsub("ex-yugoslavia", "Bosnia and Herzegovina, Croatia, Macedonia, Montenegro, Serbia, Slovenia",origin$Countries )
@@ -35,10 +47,25 @@ for (i in 1:nrow(origin))
   matched<-unique(matched[is.na(matched)==F])
   countries[i,matched]<-1
 }
+island_mat<-matrix(0, nrow(countries), length(unique(island_nations$New.countrycode)))
+colnames(island_mat)<-unique(island_nations$New.countrycode)
+countries<-cbind(countries, island_mat)
+for (i in 1:nrow(origin))
+{
+  matched<-island_nations$New.countrycode[match(strsplit(origin$Countries[i], split=c(";|\\,|\\,\\s|\\s;|;\\s"))[[1]], island_nations$Unmatched.territories)]
+  matched<-unique(matched[is.na(matched)==F])
+  countries[i,matched]<-1
+}
 continents<-data.frame(EUR=0, NAm=0, AS=0, AF=0, OC=0, SA=0)
 for (i in 1:nrow(origin))
 {
   matched<-match(strsplit(origin$Continents[i], split=c(";|\\,|\\,\\s|\\s;|;\\s"))[[1]], colnames(continents))
+  matched<-unique(matched[is.na(matched)==F])
+  continents[i,matched]<-1
+}
+for (i in 1:nrow(origin))
+{
+  matched<-island_nations$associated.continent[match(strsplit(origin$Countries[i], split=c(";|\\,|\\,\\s|\\s;|;\\s"))[[1]], island_nations$Unmatched.territories)]
   matched<-unique(matched[is.na(matched)==F])
   continents[i,matched]<-1
 }
@@ -57,7 +84,7 @@ invacost<-subset(invacost, Geographic_region!="Diverse/Unspecified")
 invacost<-invacost[,c(1,3,7,8,12:21,27:31,36,37,45,46,52:55)]
 origin<-subset(origin, Disease.Agent..to.remove.!=1)
 origin<-subset(origin, is.na(origin$Domesticated..to.set.as.diverse.)==T)
-invacost_origin<-merge(invacost, origin[,c(1:4,13:248)], by="Species")
+invacost_origin<-merge(invacost, origin[,c(1:4,13:262)], by="Species")
 write.csv(invacost_origin, file="origin_invacost_nonexpanded.csv", row.names=F)
 invacost_origin<-subset(invacost_origin, is.na(invacost_origin$Probable_starting_year_adjusted)==F)
 invacost_origin_expanded<-expandYearlyCosts(invacost_origin, 'Probable_starting_year_adjusted', "Probable_ending_year_adjusted")
@@ -68,6 +95,6 @@ length(unique(invacost_origin_expanded$Cost_ID))
 length(unique(invacost_origin_expanded$Reference_ID))
 length(unique(invacost_origin_expanded$Species))
 length(unique(invacost_origin_expanded$Official_country))
-length(which(colSums(invacost_origin_expanded[,37:266])>0))
+length(which(colSums(invacost_origin_expanded[,37:281])>0))
 
 
