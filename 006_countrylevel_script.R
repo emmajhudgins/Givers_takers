@@ -8,6 +8,9 @@ require(countrycode)
 require(gridExtra)
 setwd(paste0(here(), "/data/"))
 options(scipen=999)
+library(rvest)
+library(mgcv)
+
 
 # As well as Emma's prior filters...
 # Data adjustments (manual):
@@ -28,6 +31,7 @@ for (i in 1:nrow(data))
 
 data<-data[,c(1:31, 38:267)]
 data<-data[,-(which(colnames(data)=="NA."))]
+
 data$origin_code<-"NA"
 for (i in 1:nrow(data))
 {
@@ -60,19 +64,26 @@ expanded<-expanded %>%
 
 expanded$TenYear<-signif(expanded$Impact_year,digits=3)
 
+expanded<-subset(expanded, destin_code!='NA')
+expanded<-subset(expanded, origin_code!='NA')
+
+length(unique(expanded$Species))
+length(unique(expanded$Cost_ID))
+length(unique(expanded$Reference_ID))
+length(unique(expanded$N))
+length(unique(expanded$origin_code))
+length(unique(expanded$destin_code))
 
 ### BASIC ANALYSES
 
-aggregate(mil~destin_code,data=expanded,FUN=sum)
-aggregate(mil~origin_code,data=expanded,FUN=sum)
-aggregate(mil~origin_code*Destin_code,data=expanded,FUN=sum)
+receivers<-aggregate(mil~destin_code,data=expanded,FUN=sum)
+givers<-aggregate(mil~origin_code,data=expanded,FUN=sum)
+top_pairs<-aggregate(mil~origin_code*destin_code,data=expanded,FUN=sum)
 
 byspp<-expanded%>%group_by(Species)%>%mutate(num=1/length(N))
 aggregate(num~destin_code,data=byspp,FUN=sum)
 aggregate(num~origin_code,data=byspp,FUN=sum)
 aggregate(num~origin_code*destin_code,data=byspp,FUN=sum)
-
-
 
 
 
@@ -83,15 +94,17 @@ df<-df %>%
   group_by(Species) %>%
   mutate(N = N / n()) # number of species qualified per origin/destination
 
-Give <- expanded %>% group_by(Origin_cont, TenYear) %>% summarise(cost=sum(mil))
+Give <- expanded %>% group_by(origin_code, TenYear) %>% summarise(cost=sum(mil))
 
 
 
-Take <- expanded %>% group_by(Destin_cont, TenYear) %>% summarise(cost=sum(mil))
-Give_spp <- df %>% group_by(Origin_cont, TenYear) %>% summarise(spp=sum(N))
+Take <- expanded %>% group_by(destin_code, TenYear) %>% summarise(cost=sum(mil))
+Give_spp <- df %>% group_by(origin_code, TenYear) %>% summarise(spp=sum(N))
 
-Take_spp <- df %>% group_by(Destin_cont, TenYear) %>% summarise(spp=sum(N))
+Take_spp <- df %>% group_by(destin_code, TenYear) %>% summarise(spp=sum(N))
 
+
+##link with sTwist first record database
 
 stwist<-read.table('sTwist_database.csv', header=T)
 
@@ -123,15 +136,18 @@ stwist_cont<-stwist_cont %>%
 
 
 socioeco_dat<-readRDS('soc_econ_country.rds') # From Sardain, Leung et al. Nature Sustainability
+socioeco_dat<-subset(socioeco_dat, yr==2014)
+socioeco_dat<-subset(socioeco_dat, IHS.i%in%countrycode(unique(expanded$destin_code), 'iso3c', 'country.name'))
+socioeco_dat<-subset(socioeco_dat, IHS.j%in%countrycode(unique(expanded$destin_code), 'iso3c', 'country.name'))
 
 
 ###trade data
 
-alldata<-read.csv("invacost_origin_expanded_DN.csv") # continent column manually fixed by Dat Nguyen
-origin_countries<-colnames(alldata)[38:267]
-destin_countries<-countrycode(unique(data$Official_country), 'country.name', 'iso3c')
-# trade<-matrix(0, length(origin_countries),length(destin_countries))
-baci_country<-read.csv('~/Downloads/country_codes_V202102.csv')
+# alldata<-read.csv("invacost_origin_expanded_DN.csv") # continent column manually fixed by Dat Nguyen
+# origin_countries<-colnames(alldata)[38:267]
+# destin_countries<-countrycode(unique(data$Official_country), 'country.name', 'iso3c')
+# # trade<-matrix(0, length(origin_countries),length(destin_countries))
+# baci_country<-read.csv('~/Downloads/country_codes_V202102.csv')
 # 
 # baci_dat<-read.csv(paste0("~/Downloads/BACI_HS92_V202102.csv"))
 # for (j in 1:length(destin_countries))
@@ -158,46 +174,26 @@ baci_country<-read.csv('~/Downloads/country_codes_V202102.csv')
 # }
 #saveRDS(trade_historical, "../output/trade_historical.RDS")
 
+colnames(socioeco_dat)[15:16]<-c('origin_code', 'destin_code')
+socioeco_dat$origin_code<-countrycode(socioeco_dat$origin_code,'country.name', 'iso3c')
+socioeco_dat$destin_code<-countrycode(socioeco_dat$destin_code,'country.name', 'iso3c')
+expanded<-left_join(expanded, socioeco_dat, by=c('origin_code', 'destin_code'))
+expanded$FTA[which(is.na(expanded$FTA))]<-"UNK"
+expanded$CCH[which(is.na(expanded$CCH))]<-"UNK"
+expanded$CB[which(is.na(expanded$CB))]<-"UNK"
+expanded$CL[which(is.na(expanded$CL))]<-"UNK"
+expanded$GDP.i[which(is.na(expanded$GDP.i))]<-mean(expanded$GDP.i, na.rm=T)
+expanded$GDP.j[which(is.na(expanded$GDP.j))]<-mean(expanded$GDP.j, na.rm=T)
+expanded$Pop.i[which(is.na(expanded$Pop.i))]<-mean(expanded$Pop.i, na.rm=T)
+expanded$Pop.j[which(is.na(expanded$Pop.j))]<-mean(expanded$Pop.j, na.rm=T)
+expanded$Distance[which(is.na(expanded$Distance))]<-mean(expanded$Distance, na.rm=T)
+
+origin_countries<-colnames(data)[38:267]
+destin_countries<-countrycode(unique(data$Official_country), 'country.name', 'iso3c')
 trade<-readRDS('../output/trade.RDS')
 trade_historical<-readRDS('../output/trade_historical.RDS')
-alldata$trade<-0
-alldata$trade_historical<-0
-alldata$code<-countrycode(alldata$Official_country, "country.name", 'iso3c')
-for (i in 1:nrow(alldata))
-{
-  orig<-colnames(alldata)[which(alldata[i,38:267]==1)+37]
-  dest<-alldata$code[i]
-  alldata$trade_historical[i]<-sum(trade[which(origin_countries%in%orig), which(destin_countries==dest)],na.rm=T)
-  alldata$trade_historical[i]<-sum(trade_historical[which(origin_countries%in%orig), which(destin_countries==dest)],na.rm=T)
-}
 
-library(rvest)
-sr<-read_html('https://rainforests.mongabay.com/03highest_biodiversity.htm')
-sr_tab<-html_table(sr)[[1]]
-for (i in 2:7)
-{
-  sr_tab[,i]<-gsub(",", "",sr_tab[,i])
-  
-  sr_tab[,i]<-as.numeric(sr_tab[,i])
-}
-sr_tab$code<-countrycode(sr_tab$Country, 'country.name', 'iso3c')
-sr_tab$tot_sr<-rowSums(sr_tab[,2:7], na.rm=T)
-
-alldata$species_richness<-sr_tab$tot_sr[match(alldata$code,sr_tab$code)]
-
-library(mgcv)
-
-m<-gam(log(Give$cost)~log(Give_spp$spp)+s(log(Give_spp$TenYear), k=5)+Give_spp$Origin_cont, select=T,method='GCV.Cp')
-
-m2<-gam(log(Take$cost)~log(Take_spp$spp)+Take_spp$Destin_cont+s(log(Take_spp$TenYear), k=5), select=T, method='GCV.Cp')
-
-
-plot(log(Give$cost)~predict(m))
-abline(0,1)
-plot(log(Take$cost)~predict(m2))
-abline(0,1)
-
-
+### check out top trade associations
 top10pairs<-arrayInd(order(trade, decreasing=T)[1:11], dim(trade))
 
 top10pairs[,1]<-origin_countries[top10pairs[,1]]
@@ -216,3 +212,59 @@ colnames(historical_pairs)<-c("From", 'To')
 historical_pairs<-as.data.frame(historical_pairs)
 historical_pairs$Vol<-unlist(trade_historical[order(trade_historical, decreasing=T)[1:13]])
 historical_pairs<-historical_pairs[-c(2,5,7),]# removing duplicate Canada ->USA
+
+
+### Model cost donation/reception
+expanded<-cbind(expanded, byspp$num)
+alldata<-expanded%>%group_by(origin_code, destin_code, TenYear)%>%summarise_at(c('mil','...280' ),sum)
+
+alldata2<-cbind(expanded)%>%group_by(origin_code, destin_code, TenYear)%>%summarise_at(c('GDP.i', 'GDP.j', 'Pop.i', 'Pop.j', 'Distance'),mean)
+
+alldata3<-cbind(expanded)%>%group_by(origin_code, destin_code, TenYear)%>%summarise_at(c('CB', 'CL', 'CCH', 'FTA'),max)
+alldata<-cbind(alldata, alldata2[,4:8], alldata3[,4:7])
+colnames(alldata)[5]<-'n_spp'
+alldata$trade<-0
+alldata$trade_historical<-0
+for (i in 1:nrow(alldata))
+{
+  orig<-alldata$origin_code[i]
+  dest<-alldata$destin_code[i]
+  alldata$trade[i]<-sum(trade[which(origin_countries%in%orig), which(destin_countries==dest)],na.rm=T)
+  alldata$trade_historical[i]<-sum(trade_historical[which(origin_countries%in%orig), which(destin_countries==dest)],na.rm=T)
+}
+
+##species richness by country
+sr<-read_html('https://rainforests.mongabay.com/03highest_biodiversity.htm')
+sr_tab<-html_table(sr)[[1]]
+for (i in 2:7)
+{
+  sr_tab[,i]<-gsub(",", "",sr_tab[,i])
+  
+  sr_tab[,i]<-as.numeric(sr_tab[,i])
+}
+sr_tab$code<-countrycode(sr_tab$Country, 'country.name', 'iso3c')
+sr_tab$tot_sr<-rowSums(sr_tab[,2:7], na.rm=T)
+
+alldata$sr_orig<-sr_tab$tot_sr[match(alldata$origin_code,sr_tab$code)]
+alldata$sr_dest<-sr_tab$tot_sr[match(alldata$destin_code,sr_tab$code)]
+alldata$sr_orig[which(is.na(alldata$sr_orig))]<-mean(alldata$sr_orig, na.rm=T)
+alldata$sr_dest[which(is.na(alldata$sr_dest))]<-mean(alldata$sr_dest, na.rm=T)
+
+
+m<-gam(log(alldata$mil)~log(alldata$n_spp)+s(log(alldata$TenYear), k=5)+s(log(alldata$sr_orig+1), k=3)+s(log(alldata$sr_dest+1), k=3)+s(log(alldata$trade+1), k=3)+s(log(alldata$GDP.i+1), k=3)+s(log(alldata$GDP.j+1), k=3)+s(log(alldata$Pop.i+1), k=3)+s(log(alldata$Pop.j+1), k=3)+s(log(alldata$Distance+1), k=3), select=T,method='GCV.Cp')
+
+
+m2<-lm(log(alldata$mil)~log(alldata$n_spp)+(log(alldata$TenYear))+(log(alldata$sr_orig+1))+(log(alldata$sr_dest+1))+(log(alldata$trade+1))+(log(alldata$GDP.i+1))+(log(alldata$GDP.j+1))+(log(alldata$Pop.i+1))+(log(alldata$Pop.j+1))+(log(alldata$Distance+1)))
+
+m3<-gam((alldata$mil)~(alldata$n_spp)+s((alldata$TenYear), k=5)+s((alldata$sr_orig+1), k=3)+s((alldata$sr_dest+1), k=3)+s((alldata$trade+1), k=3)+s((alldata$GDP.i+1), k=3)+s((alldata$GDP.j+1), k=3)+s((alldata$Pop.i+1), k=3)+s((alldata$Pop.j+1), k=3)+s((alldata$Distance+1), k=3), select=T,method='GCV.Cp', family=poisson)
+
+
+summary(m)
+
+
+plot(log(alldata$mil)~predict(m))
+
+abline(0,1)
+saveRDS(m, file="../output/countrylevelgam.RDS")
+write.csv(alldata, file="alldata_pluspreds.csv", row.names=F)
+
