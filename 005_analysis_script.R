@@ -268,67 +268,17 @@ dev.off()
 socioeco_dat<-readRDS('soc_econ_country.rds') # From Sardain, Leung et al. Nature Sustainability
 
 
-###trade data
+library(mgcv)
+m<-gam(log(Give$cost)~log(Give_spp$spp)+s(log(Give_spp$TenYear), k=5)+Give_spp$Origin_cont, select=T,method='GCV.Cp')
 
-alldata<-read.csv("invacost_origin_expanded_DN.csv") # continent column manually fixed by Dat Nguyen
-origin_countries<-colnames(alldata)[38:267]
-destin_countries<-countrycode(unique(data$Official_country), 'country.name', 'iso3c')
-# trade<-matrix(0, length(origin_countries),length(destin_countries))
-# baci_code<-c(92) # oldest historical data
-# baci_country<-read.csv('~/Downloads/country_codes_V202102.csv')
-# 
-# baci_dat<-read.csv(paste0("~/Downloads/BACI_HS92_V202102.csv"))
-# for (j in 1:length(destin_countries))
-# {
-#   for (i in 1:length(origin_countries))
-#   {
-#     qq<-baci_dat[which(baci_dat$i==baci_country$country_code[which(baci_country$iso_3digit_alpha%in%origin_countries[i])] & baci_dat$j%in%baci_country$country_code[which(baci_country$iso_3digit_alpha%in%destin_countries[j])]),]
-#     if(nrow(qq)>0)
-#     {trade[i,j]<-trade[i,j]+sum(qq$q, na.rm=T)}
-#   }
-# }
-# saveRDS(trade, "../output/trade.RDS")
-# trade_historical<-matrix(NA, length(origin_countries),length(destin_countries))
-# 
-#  baci_dat<-read.csv(paste0("~/Downloads/BACI_HS92_Y1995_V202102.csv"))
-#     for (j in 1:length(destin_countries))
-#     {
-#       for (i in 1:length(origin_countries))
-#       {
-#         qq<-baci_dat[which(baci_dat$i==baci_country$country_code[which(baci_country$iso_3digit_alpha%in%origin_countries[i])] & baci_dat$j%in%baci_country$country_code[which(baci_country$iso_3digit_alpha%in%destin_countries[j])]),]
-#         if(nrow(qq)>0)
-#         {trade_historical[i,j]<-trade_historical[i,j]+sum(qq$q, na.rm=T)}
-#       }
-#     }
-# saveRDS(trade_historical, "../output/trade_historical.RDS")
+m2<-gam(log(Take$cost)~log(Take_spp$spp)+Take_spp$Destin_cont+s(log(Take_spp$TenYear), k=5), select=T, method='GCV.Cp')
 
-trade<-readRDS('../output/trade.RDS')
-trade_historical<-readRDS('../output/trade_historical.RDS')
-alldata$trade<-0
-alldata$trade_historical<-0
-alldata$code<-countrycode(alldata$Official_country, "country.name", 'iso3c')
-for (i in 1:nrow(alldata))
-{
-  orig<-colnames(alldata)[which(alldata[i,38:267]==1)+37]
-  dest<-alldata$code[i]
-  alldata$trade_historical[i]<-sum(trade[which(origin_countries%in%orig), which(destin_countries==dest)],na.rm=T)
-  alldata$trade_historical[i]<-sum(trade_historical[which(origin_countries%in%orig), which(destin_countries==dest)],na.rm=T)
-}
+Give_Take <- expanded %>% group_by(Origin_cont,Destin_cont, TenYear) %>% summarise(cost=sum(mil))
+Give_Take_spp <- expanded %>% group_by(Origin_cont,Destin_cont, TenYear) %>% summarise(cost=sum(mil))
+m3<-gam(log(Take$cost)~log(Give_cost))
 
-library(rvest)
-sr<-read_html('https://rainforests.mongabay.com/03highest_biodiversity.htm')
-sr_tab<-html_table(sr)[[1]]
-for (i in 2:7)
-{
-  sr_tab[,i]<-gsub(",", "",sr_tab[,i])
-  
-  sr_tab[,i]<-as.numeric(sr_tab[,i])
-}
-sr_tab$code<-countrycode(sr_tab$Country, 'country.name', 'iso3c')
-sr_tab$tot_sr<-rowSums(sr_tab[,2:7], na.rm=T)
-
-alldata$species_richness<-sr_tab$tot_sr[match(alldata$code,sr_tab$code)]
-
-alldata$logcost<-log(alldata$Cost_estimate_per_year_2017_USD_exchange_rate)
-
+plot(log(Give$cost)~predict(m))
+abline(0,1)
+plot(log(Take$cost)~predict(m2))
+abline(0,1)
 
