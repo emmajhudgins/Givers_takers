@@ -128,7 +128,7 @@ for (reg in region_cd)
     theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("Cost")
   i=i+1
 }
-pdf(file='invacost_givers.pdf')
+pdf(file='../outputinvacost_givers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
 
@@ -142,7 +142,7 @@ for (reg in region_cd)
     theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("Cost")
   i=i+1
 }
-pdf(file='invacost_receivers.pdf')
+pdf(file='../output/invacost_receivers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
 
@@ -191,7 +191,7 @@ for (reg in region_cd)
     theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("No. Species")
   i=i+1
 }
-pdf(file='invacost_spp_givers.pdf')
+pdf(file='../output/invacost_spp_givers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
 
@@ -261,7 +261,7 @@ for (reg in region)
   i=i+1
 }
 
-pdf(file='sTwist_receivers.pdf')
+pdf(file='../output/sTwist_receivers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
 
@@ -273,9 +273,10 @@ m<-gam(log(Give$cost)~log(Give_spp$spp)+s(log(Give_spp$TenYear), k=5)+Give_spp$O
 
 m2<-gam(log(Take$cost)~log(Take_spp$spp)+Take_spp$Destin_cont+s(log(Take_spp$TenYear), k=5), select=T, method='GCV.Cp')
 
-Give_Take <- expanded %>% group_by(Origin_cont,Destin_cont, TenYear) %>% summarise(cost=sum(mil))
-Give_Take_spp <- expanded %>% group_by(Origin_cont,Destin_cont, TenYear) %>% summarise(cost=sum(mil))
-m3<-gam(log(Take$cost)~log(Give_cost))
+Take_cost<-log(aggregate(mil~Destin_cont,data=expanded,FUN=sum)$mil)
+Give_cost<-log(aggregate(mil~Origin_cont,data=expanded,FUN=sum)$mil)
+
+cor.test(log(Take_cost),log(Give_cost)) #only 6 data points
 
 plot(log(Give$cost)~predict(m))
 abline(0,1)
