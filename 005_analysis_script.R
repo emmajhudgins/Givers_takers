@@ -128,7 +128,7 @@ for (reg in region_cd)
     theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("Cost")
   i=i+1
 }
-pdf(file='../outputinvacost_givers.pdf')
+pdf(file='../output/invacost_givers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
 
@@ -227,7 +227,7 @@ stwist<-subset(stwist, eventDate>1500)#use post-colonial invasions
 domesticated<-c('Felis catus', 'Canis lupus', 'Ovis aries', 'Camelus dromedarius','Sus scrofa','Equus caballus','Equus asinus', 'Mustela furo','Capra hircus')
 for (dom in domesticated)
 {
-  stwist<-stwist[-grep(dom, stwist$scientificName)]
+  stwist<-stwist[-grep(dom, stwist$scientificName),]
 }
 stwist_cont<-aggregate(locationID~Destin_cont+Species+TenYear,data=stwist,FUN=length)
 stwist_cont<-subset(stwist_cont, Species%in%expanded$Species)
@@ -265,13 +265,25 @@ pdf(file='../output/sTwist_receivers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
 
-socioeco_dat<-readRDS('soc_econ_country.rds') # From Sardain, Leung et al. Nature Sustainability
+lpi<-readRDS('~/Downloads/test_continent_red.rds') # need to change how central america is coded here
+lpi$Origin_cont<-c("AF", "SA", "NAm", "AS", "EUR", "OC")
+lpi$frac_1[which(is.na(lpi$frac_1))]<-0
+lpi$frac_2[which(is.na(lpi$frac_2))]<-0
+lpi$frac_3[which(is.na(lpi$frac_3))]<-0
 
 
+
+n_refs<-expanded%>%group_by(TenYear, Origin_cont)%>%summarize_at("Reference_ID", n_distinct)
+Give<-merge(Give, n_refs)
+Give<-merge(Give, lpi, "Origin_cont")
 library(mgcv)
-m<-gam(log(Give$cost)~log(Give_spp$spp)+s(log(Give_spp$TenYear), k=5)+Give_spp$Origin_cont, select=T,method='GCV.Cp')
+m<-gam(log(Give$cost)~log(Give_spp$spp)+s(log(Give_spp$TenYear), k=5)+Give_spp$Origin_cont+Give$frac_1+Give$frac_2+Give$frac_3+Give$comb_mean+log(Give$Reference_ID), select=T,method='GCV.Cp')
 
-m2<-gam(log(Take$cost)~log(Take_spp$spp)+Take_spp$Destin_cont+s(log(Take_spp$TenYear), k=5), select=T, method='GCV.Cp')
+lpi$Destin_cont<-c("AF", "SA", "NAm", "AS", "EUR", "OC")
+
+Take_spp<-merge(Take_spp, lpi, "Destin_cont")
+Take_spp<-merge(Take_spp, n_refs)
+m2<-gam(log(Take$cost)~log(Take_spp$spp)+Take_spp$Destin_cont+s(log(Take_spp$TenYear), k=5)+Take$frac_1+Take$frac_2+Take$frac_3+Take$comb_mean+log(Take$Reference_ID),select=T, method='GCV.Cp')
 
 Take_cost<-log(aggregate(mil~Destin_cont,data=expanded,FUN=sum)$mil)
 Give_cost<-log(aggregate(mil~Origin_cont,data=expanded,FUN=sum)$mil)
