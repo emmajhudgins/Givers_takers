@@ -136,7 +136,6 @@ stwist_cont<-stwist_cont %>%
   mutate(N = N / n()) # number of species qualified per origin/destination
 
 socioeco_dat<-readRDS('soc_econ_country.rds') # From Sardain, Leung et al. Nature Sustainability
-socioeco_dat<-subset(socioeco_dat, yr==2014)
 socioeco_dat<-subset(socioeco_dat, IHS.i%in%countrycode(unique(expanded$destin_code), 'iso3c', 'country.name'))
 socioeco_dat<-subset(socioeco_dat, IHS.j%in%countrycode(unique(expanded$destin_code), 'iso3c', 'country.name'))
 
@@ -198,11 +197,12 @@ trade<-readRDS('../../biosecurity_invacost/data/trade_averaged.RDS')
 colnames(socioeco_dat)[15:16]<-c('origin_code', 'destin_code')
 socioeco_dat$origin_code<-countrycode(socioeco_dat$origin_code,'country.name', 'iso3c')
 socioeco_dat$destin_code<-countrycode(socioeco_dat$destin_code,'country.name', 'iso3c')
+socioeco_dat<-socioeco_dat%>%group_by(origin_code, destin_code)%>%summarize_at(c('Distance', 'FTA', "CCH", "CL", "CB"), max)
 expanded<-left_join(expanded, socioeco_dat, by=c('origin_code', 'destin_code'))
-expanded$FTA[which(is.na(expanded$FTA))]<-"UNK"
-expanded$CCH[which(is.na(expanded$CCH))]<-"UNK"
-expanded$CB[which(is.na(expanded$CB))]<-"UNK"
-expanded$CL[which(is.na(expanded$CL))]<-"UNK"
+expanded$FTA[which(is.na(expanded$FTA))]<-0
+expanded$CCH[which(is.na(expanded$CCH))]<-0
+expanded$CB[which(is.na(expanded$CB))]<-0
+expanded$CL[which(is.na(expanded$CL))]<-0
 expanded$Distance[which(is.na(expanded$Distance))]<-mean(expanded$Distance, na.rm=T)
 
 origin_countries<-colnames(data)[32:260]
@@ -231,7 +231,7 @@ historical_pairs$Vol<-unlist(trade_historical[order(trade_historical, decreasing
 
 ### Model cost donation/reception
 expanded<-cbind(expanded, byspp$num)
-alldata<-expanded%>%group_by(origin_code, destin_code, TenYear)%>%summarise_at(c('mil','...280' ),sum)
+alldata<-expanded%>%group_by(origin_code, destin_code, TenYear)%>%summarise_at(c('mil','...271' ),sum)
 
 alldata2<-cbind(expanded)%>%group_by(origin_code, destin_code, TenYear)%>%summarise_at(c('Distance'),mean)
 
@@ -308,9 +308,12 @@ colnames(gdp2)[1]<-'origin_code'
 alldata<-merge(alldata, gdp2, by=c('origin_code', "TenYear"), all.x=T)
 colnames(alldata)[21]<-'gdp.i'
 
-n_refs<-expanded%>%group_by(TenYear, origin_code)%>%summarize_at("Reference_ID", n_distinct)
+n_refs<-expanded%>%group_by(TenYear, destin_code)%>%summarize_at("Reference_ID", n_distinct)
 alldata<-merge(alldata, n_refs)
-alldata<-subset(alldata, c(TenYear>=1960,TenYear>2010))
+n_refs<-expanded%>%group_by(TenYear, origin_code)%>%summarize_at("Reference_ID", n_distinct)
+colnames(n_refs)[3]<-'Reference_ID_origin'
+alldata<-merge(alldata, n_refs)
+alldata<-subset(alldata, (TenYear>=1960&TenYear<2020))
 
 for (i in 1:nrow(alldata))
 {
@@ -327,7 +330,9 @@ for (i in 1:nrow(alldata))
   if (is.nan(alldata$gdp.i[i]))
   {
     sub<-subset(alldata, origin_code==alldata$origin_code[i]& is.nan(alldata$gdp.i)==F)
-    alldata$gdp.i[i]<-sub$gdp.i[which.min(abs(sub$TenYear-alldata$TenYear[i]))]
+    if (nrow(sub)>0)
+    {
+    alldata$gdp.i[i]<-sub$gdp.i[which.min(abs(sub$TenYear-alldata$TenYear[i]))]}
   }
   if (is.nan(alldata$gdp.j[i]))
   {
@@ -335,10 +340,13 @@ for (i in 1:nrow(alldata))
     alldata$gdp.j[i]<-sub$gdp.j[which.min(abs(sub$TenYear-alldata$TenYear[i]))]
   }
 }
+alldata<-subset(alldata, origin_code%in%c("GIB", "VGB")==F)# removing Gibraltar
+alldata$gdp.i[which(alldata$origin_code=="PRK")]<-mean(alldata$gdp.i, na.rm=T)
 # m<-gam(log(alldata$mil)~log(alldata$n_spp)+s(log(alldata$TenYear), k=5)+s(log(alldata$sr_orig+1), k=3)+s(log(alldata$sr_dest+1), k=3)+s(log(alldata$trade+1), k=3)+s((alldata$GDP.i+1), k=3)+s((alldata$GDP.j+1), k=3)+s((alldata$Pop.i+1), k=3)+s((alldata$Pop.j+1), k=3)+s(log(alldata$Distance+1), k=3)+ s(log(alldata$totalgivenTenYear), k=3)+s(log(alldata$Reference_ID), k=3), select=T,method='GCV.Cp')
 
-m2<-gam(log(alldata$mil)~log(alldata$n_spp)+s((alldata$TenYear), k=5)+(log(alldata$sr_orig+1))+(log(alldata$sr_dest+1))+(log(alldata$trade+1))+(log(alldata$gdp.i+1))+(log(alldata$gdp.j+1))+(log(alldata$pop.i+1))+(log(alldata$pop.j+1))+(log(alldata$Distance+1))+log(alldata$totalgivenTenYear)+log(alldata$area.i)+log(alldata$area.j)+log(alldata$trade_historical+1)+log(alldata$Reference_ID))
-
+m2<-gam(log(alldata$mil)~log(alldata$n_spp)+s((alldata$TenYear), k=5)+(log(alldata$sr_orig+1))+(log(alldata$sr_dest+1))+(log(alldata$trade+1))+(log(alldata$gdp.i+1))+(log(alldata$gdp.j+1))+(log(alldata$pop.i+1))+(log(alldata$pop.j+1))+((alldata$Distance))+log(alldata$totalgivenTenYear)+log(alldata$area.i)+log(alldata$area.j)+log(alldata$trade_historical+1)+log(alldata$Reference_ID)+log(alldata$Reference_ID_origin)+alldata$CB+alldata$CL+alldata$FTA+alldata$CCH)
+cor(alldata[,5:22])
+cor(alldata[,5:22])[order(cor(alldata[,5:22]), decreasing = T)][19:30]
 # m3<-gam((alldata$mil)~(alldata$n_spp)+s((alldata$TenYear), k=5)+s((alldata$sr_orig+1), k=3)+s((alldata$sr_dest+1), k=3)+s((alldata$trade+1), k=3)+s((alldata$GDP.i+1), k=3)+s((alldata$GDP.j+1), k=3)+s((alldata$Pop.i+1), k=3)+s((alldata$Pop.j+1), k=3)+s((alldata$Distance+1), k=3)+s(log(alldata$Reference_ID), k=3), select=T,method='GCV.Cp', family=poisson)
 
 
