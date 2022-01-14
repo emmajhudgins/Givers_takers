@@ -31,9 +31,10 @@ colnames(data)[32:33]<-c("Destin_cont", "Origin_cont")
 data$Origin_cont[which(data$Species=='Ephestia kuehniella')]<-"AS"
 data$Origin_cont[which(data$Species=='Rumex lunaria')]<-"EUR"
 data$Origin_cont[which(data$Species=='Thaumetopoea processionea')]<-"EUR"
+
+data_unk_cont<-data[(data$Origin_cont==""),]
 data <- data[!(data$Origin_cont==""),] # blank origins (i.e. pathogens) omitted
 data <- data[!is.na(data$Cost_estimate_per_year_2017_USD_exchange_rate),] # blank costs removed
-
 data$mil<-data$Cost_estimate_per_year_2017_USD_exchange_rate/1000000
 sum(data$mil) # aggregate cost (US$ millions)
 data$N <- 1:nrow(data) # unique identifier for qualification below
@@ -56,14 +57,20 @@ sum(expanded$mil) # same cost as before origin/destination expansion (it worked)
 sum(data$mil) 
 expanded$TenYear<-signif(expanded$Impact_year,digits=3)
 
-
 ### BASIC ANALYSES
 
 aggregate(mil~Destin_cont,data=expanded,FUN=sum)
 aggregate(mil~Origin_cont,data=expanded,FUN=sum)
 aggregate(mil~Origin_cont*Destin_cont,data=expanded,FUN=sum)
 
-byspp<-expanded%>%group_by(Species)%>%mutate(num=1/length(N))
+flow2<-aggregate(mil~Origin_cont*Destin_cont+Species,data=expanded,FUN=sum)
+flow2<-flow2 %>%
+  mutate(N = 1) # qualifying factor
+flow3<-flow2 %>%
+  group_by(Species) %>%
+  mutate(N = N / n()) # number of species qualified per origin/destination
+byspp<-aggregate(N~Origin_cont*Destin_cont,data=flow3,FUN=sum)
+colnames(byspp)[3]<-"num"
 aggregate(num~Destin_cont,data=byspp,FUN=sum)
 aggregate(num~Origin_cont,data=byspp,FUN=sum)
 aggregate(num~Origin_cont*Destin_cont,data=byspp,FUN=sum)
@@ -72,7 +79,7 @@ aggregate(num~Origin_cont*Destin_cont,data=byspp,FUN=sum)
 
 region <- unique(expanded$Origin_cont)
 tempo <- unique(expanded$TenYear)
-
+expanded<-subset(expanded, (TenYear>=1960&TenYear<2020))
 
 df<-aggregate(mil~Origin_cont*Destin_cont+Species+TenYear,data=expanded,FUN=sum)
 df<-df %>%
@@ -129,6 +136,7 @@ for (reg in region_cd)
   i=i+1
 }
 pdf(file='../output/invacost_givers.pdf')
+par(oma=c(0,0,0,4))
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
 
@@ -277,13 +285,18 @@ n_refs<-expanded%>%group_by(TenYear, Origin_cont)%>%summarize_at("Reference_ID",
 Give<-merge(Give, n_refs)
 Give<-merge(Give, lpi, "Origin_cont")
 library(mgcv)
-m<-gam(log(Give$cost)~log(Give_spp$spp)+s(log(Give_spp$TenYear), k=5)+Give_spp$Origin_cont+Give$frac_1+Give$frac_2+Give$frac_3+Give$comb_mean+log(Give$Reference_ID), select=T,method='GCV.Cp')
+m<-gam(log(Give$cost)~log(Give_spp$spp)+s((Give$TenYear), k=5)+log(Give$frac_2+1)+log(Give$frac_3+1)+log(Give$comb_mean+1)+log(Give$Reference_ID), select=T,method='GCV.Cp')
+
 
 lpi$Destin_cont<-c("AF", "SA", "NAm", "AS", "EUR", "OC")
 
 Take_spp<-merge(Take_spp, lpi, "Destin_cont")
+
+n_refs<-expanded%>%group_by(TenYear,Destin_cont)%>%summarize_at("Reference_ID", n_distinct)
 Take_spp<-merge(Take_spp, n_refs)
-m2<-gam(log(Take$cost)~log(Take_spp$spp)+Take_spp$Destin_cont+s(log(Take_spp$TenYear), k=5)+Take$frac_1+Take$frac_2+Take$frac_3+Take$comb_mean+log(Take$Reference_ID),select=T, method='GCV.Cp')
+m2<-gam(log(Take$cost)~log(Take_spp$spp)+s(log(Take_spp$TenYear), k=5)+log(Take_spp$frac_2+1)+log(Take_spp$frac_3+1)+log(Take_spp$comb_mean+1)+log(Take_spp$Reference_ID),select=T, method='GCV.Cp')
+summary(m2)
+
 
 Take_cost<-log(aggregate(mil~Destin_cont,data=expanded,FUN=sum)$mil)
 Give_cost<-log(aggregate(mil~Origin_cont,data=expanded,FUN=sum)$mil)
@@ -295,3 +308,27 @@ abline(0,1)
 plot(log(Take$cost)~predict(m2))
 abline(0,1)
 
+library(invacost)
+data(invacost)
+invacost<-subset(invacost,Method_reliability=="High" )
+invacost<-subset(invacost,Implementation=="Observed" )
+invacost_sub<-subset(invacost, Species=="Diverse/Unspecified")
+length(grep("spp\\.", invacost$Species))
+invacost_sub<-bind_rows(invacost_sub, invacost[grep("spp\\.", invacost$Species),])
+length(grep("Global",invacost_sub$Geographic_region))
+
+data<-read.csv("invacost_origin_expanded_DN.csv")[,2:4] # continent column manually fixed by Dat Nguyen
+data<-unique.data.frame(data)
+invacost_sub2<-merge(invacost, data, by=c("Species"), all.x=T)
+invacost_sub2<-subset(invacost_sub2, is.na(Cost_ID.y))
+invacost_sub2<-invacost_sub2[,1:65]
+colnames(invacost_sub2)[c(2,4)]<-colnames(invacost_sub)[c(1,3)]
+length(unique(invacost_sub2$Species))
+invacost_sub<-bind_rows(invacost_sub, invacost_sub2)
+invacost_sub<-invacost_sub[,c(1,3,18,28,46)]
+invacost_sub<-unique(data.frame(invacost_sub))
+sample<-invacost_sub%>%group_by(Geographic_region)%>%summarize_at('Cost_ID', n_distinct)
+sample2<-invacost_sub%>%group_by(Geographic_region)%>%summarize_at('Cost_estimate_per_year_2017_USD_exchange_rate', sum, na.rm=T)
+library(ggplot2)
+
+ggplot(data=invacost_sub, aes(y=(Cost_estimate_per_year_2017_USD_exchange_rate)/1000000, x=Geographic_region, fill=Geographic_region))+geom_boxplot()+scale_y_log10(breaks=c(0.0001,0.1,100,100000), labels=c('0.0001','0.1','100','100000'))+theme_classic()+ylab("Cost (millions US$)")+xlab(NULL)+scale_fill_discrete(labels=paste0(sample$Geographic_region, ", $", round(sample2$Cost_estimate_per_year_2017_USD_exchange_rate/1000000, digits=2), ", (", sample$Cost_ID, ")"))+scale_x_discrete(labels=NULL)+guides(fill=guide_legend(title="Geographic region"))+theme(axis.ticks=element_blank())

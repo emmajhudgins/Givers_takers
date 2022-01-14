@@ -81,7 +81,14 @@ receivers<-aggregate(mil~destin_code,data=expanded,FUN=sum)
 givers<-aggregate(mil~origin_code,data=expanded,FUN=sum)
 top_pairs<-aggregate(mil~origin_code*destin_code,data=expanded,FUN=sum)
 
-byspp<-expanded%>%group_by(Species)%>%mutate(num=1/length(N))
+flow2<-aggregate(mil~origin_code*destin_code+Species,data=expanded,FUN=sum)
+flow2<-flow2 %>%
+  mutate(N = 1) # qualifying factor
+flow3<-flow2 %>%
+  group_by(Species) %>%
+  mutate(N = N / n()) # number of species qualified per origin/destination
+byspp<-aggregate(N~origin_code*destin_code,data=flow3,FUN=sum)
+colnames(byspp)[3]<-"num"
 aggregate(num~destin_code,data=byspp,FUN=sum)
 aggregate(num~origin_code,data=byspp,FUN=sum)
 aggregate(num~origin_code*destin_code,data=byspp,FUN=sum)
@@ -193,7 +200,7 @@ socioeco_dat<-subset(socioeco_dat, IHS.j%in%countrycode(unique(expanded$destin_c
 # saveRDS(trade_historical, "../output/trade_historical_averaged.RDS")
 trade_historical<-readRDS('../../biosecurity_invacost/data/trade_historical_averaged.RDS')
 trade<-readRDS('../../biosecurity_invacost/data/trade_averaged.RDS')
-
+trade<-trade[-163,]
 colnames(socioeco_dat)[15:16]<-c('origin_code', 'destin_code')
 socioeco_dat$origin_code<-countrycode(socioeco_dat$origin_code,'country.name', 'iso3c')
 socioeco_dat$destin_code<-countrycode(socioeco_dat$destin_code,'country.name', 'iso3c')
@@ -230,8 +237,8 @@ historical_pairs$Vol<-unlist(trade_historical[order(trade_historical, decreasing
 
 
 ### Model cost donation/reception
-expanded<-cbind(expanded, byspp$num)
-alldata<-expanded%>%group_by(origin_code, destin_code, TenYear)%>%summarise_at(c('mil','...271' ),sum)
+alldata<-expanded%>%group_by(origin_code, destin_code, TenYear)%>%summarise_at(c('mil'),sum)
+alldata<-merge(alldata, byspp, all.x=T)
 
 alldata2<-cbind(expanded)%>%group_by(origin_code, destin_code, TenYear)%>%summarise_at(c('Distance'),mean)
 
@@ -340,8 +347,17 @@ for (i in 1:nrow(alldata))
     alldata$gdp.j[i]<-sub$gdp.j[which.min(abs(sub$TenYear-alldata$TenYear[i]))]
   }
 }
+
 alldata<-subset(alldata, origin_code%in%c("GIB", "VGB")==F)# removing Gibraltar
 alldata$gdp.i[which(alldata$origin_code=="PRK")]<-mean(alldata$gdp.i, na.rm=T)
+length(unique(c(alldata$origin_code,alldata$destin_code)))
+alldata$origin_code<-as.factor(alldata$origin_code)
+alldata$destin_code<-as.factor(alldata$destin_code)
+levels(alldata$destin_code)<-levels(alldata$origin_code)
+alldata<-alldata %>% 
+  complete(origin_code, destin_code,TenYear) %>%
+  union(alldata)
+
 # m<-gam(log(alldata$mil)~log(alldata$n_spp)+s(log(alldata$TenYear), k=5)+s(log(alldata$sr_orig+1), k=3)+s(log(alldata$sr_dest+1), k=3)+s(log(alldata$trade+1), k=3)+s((alldata$GDP.i+1), k=3)+s((alldata$GDP.j+1), k=3)+s((alldata$Pop.i+1), k=3)+s((alldata$Pop.j+1), k=3)+s(log(alldata$Distance+1), k=3)+ s(log(alldata$totalgivenTenYear), k=3)+s(log(alldata$Reference_ID), k=3), select=T,method='GCV.Cp')
 
 m2<-gam(log(alldata$mil)~log(alldata$n_spp)+s((alldata$TenYear), k=5)+(log(alldata$sr_orig+1))+(log(alldata$sr_dest+1))+(log(alldata$trade+1))+(log(alldata$gdp.i+1))+(log(alldata$gdp.j+1))+(log(alldata$pop.i+1))+(log(alldata$pop.j+1))+((alldata$Distance))+log(alldata$totalgivenTenYear)+log(alldata$area.i)+log(alldata$area.j)+log(alldata$trade_historical+1)+log(alldata$Reference_ID)+log(alldata$Reference_ID_origin)+alldata$CB+alldata$CL+alldata$FTA+alldata$CCH)
