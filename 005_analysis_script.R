@@ -78,8 +78,8 @@ aggregate(num~Origin_cont*Destin_cont,data=byspp,FUN=sum)
 
 
 region <- unique(expanded$Origin_cont)
-tempo <- unique(expanded$TenYear)
 expanded<-subset(expanded, (TenYear>=1960&TenYear<2020))
+tempo <- unique(expanded$TenYear)
 
 df<-aggregate(mil~Origin_cont*Destin_cont+Species+TenYear,data=expanded,FUN=sum)
 df<-df %>%
@@ -139,7 +139,7 @@ pdf(file='../output/invacost_givers.pdf')
 par(oma=c(0,0,0,4))
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
-
+saveRDS(db, file="invacost_givers_data.RDS")
 plots<-list()
 i=1
 for (reg in region_cd)
@@ -153,7 +153,7 @@ for (reg in region_cd)
 pdf(file='../output/invacost_receivers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
-
+saveRDS(db2, file="invacost_takers_data.RDS")
 Give_spp <- df %>% group_by(Origin_cont, TenYear) %>% summarise(spp=sum(N))
 
 db3 <- data.frame(Give_spp[,c("Origin_cont", "TenYear", "spp")])
@@ -202,7 +202,7 @@ for (reg in region_cd)
 pdf(file='../output/invacost_spp_givers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
-
+saveRDS(db3, file="invacost_givers_spp.RDS")
 plots<-list()
 i=1
 for (reg in region_cd)
@@ -213,10 +213,11 @@ for (reg in region_cd)
     theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("No. species")
   i=i+1
 }
-pdf(file='invacost_spp_receivers.pdf')
+pdf(file='../output/invacost_spp_receivers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
 
+saveRDS(db4, file="invacost_takers_spp.RDS")
 stwist<-read.table('sTwist_database.csv', header=T)
 
 colnames(stwist)[3]<-'Species'
@@ -248,7 +249,7 @@ stwist_cont<-stwist_cont %>%
 st <-data.frame((stwist_cont[,c("Destin_cont", "TenYear", "N")])%>%group_by(Destin_cont, TenYear)%>%summarise_at('N', sum))
 
 region <- unique(st$Destin_cont)
-tempo <- unique(expanded$TenYear)
+tempo <- seq(1850, 2010, by=10)
 
 for (reg in region){
   
@@ -260,6 +261,7 @@ for (reg in region){
     st <- add_row(st, Destin_cont = reg, TenYear = tp, N = 0)
   }
 }
+st<-subset(st, TenYear>=1850)
 plots<-list()
 i=1
 for (reg in region)
@@ -318,6 +320,7 @@ invacost_sub<-bind_rows(invacost_sub, invacost[grep("spp\\.", invacost$Species),
 length(grep("Global",invacost_sub$Geographic_region))
 
 data<-read.csv("invacost_origin_expanded_DN.csv")[,2:4] # continent column manually fixed by Dat Nguyen
+invacost_per_reg<-invacost%>%group_by(Geographic_region)%>%summarize_at('Cost_estimate_per_year_2017_USD_exchange_rate', sum, na.rm=T)
 data<-unique.data.frame(data)
 invacost_sub2<-merge(invacost, data, by=c("Species"), all.x=T)
 invacost_sub2<-subset(invacost_sub2, is.na(Cost_ID.y))
@@ -329,6 +332,11 @@ invacost_sub<-invacost_sub[,c(1,3,18,28,46)]
 invacost_sub<-unique(data.frame(invacost_sub))
 sample<-invacost_sub%>%group_by(Geographic_region)%>%summarize_at('Cost_ID', n_distinct)
 sample2<-invacost_sub%>%group_by(Geographic_region)%>%summarize_at('Cost_estimate_per_year_2017_USD_exchange_rate', sum, na.rm=T)
+sample2<-merge(sample2,invacost_per_spp, by="Geographic_region")
+sample2<-sample2%>%mutate(prop=Cost_estimate_per_year_2017_USD_exchange_rate.x/Cost_estimate_per_year_2017_USD_exchange_rate.y)
 library(ggplot2)
 
-ggplot(data=invacost_sub, aes(y=(Cost_estimate_per_year_2017_USD_exchange_rate)/1000000, x=Geographic_region, fill=Geographic_region))+geom_boxplot()+scale_y_log10(breaks=c(0.0001,0.1,100,100000), labels=c('0.0001','0.1','100','100000'))+theme_classic()+ylab("Cost (millions US$)")+xlab(NULL)+scale_fill_discrete(labels=paste0(sample$Geographic_region, ", $", round(sample2$Cost_estimate_per_year_2017_USD_exchange_rate/1000000, digits=2), ", (", sample$Cost_ID, ")"))+scale_x_discrete(labels=NULL)+guides(fill=guide_legend(title="Geographic region"))+theme(axis.ticks=element_blank())
+
+ggplot(data=sample2, aes(y=prop, x=reorder(Geographic_region, -prop), fill=reorder(Geographic_region, -prop)))+geom_bar(stat="identity")+theme_classic()+ylab("Proportion unspecific costs")+xlab(NULL)+scale_fill_discrete(labels=paste0(sample$Geographic_region, ", $", round(sample2$Cost_estimate_per_year_2017_USD_exchange_rate.x/1000000, digits=2), ", (", sample$Cost_ID, ")"))+scale_x_discrete(labels=NULL)+guides(fill=guide_legend(title="Geographic region"))+theme(axis.ticks=element_blank())
+
+       
