@@ -56,11 +56,17 @@ expanded<-expanded %>%
 sum(expanded$mil) # same cost as before origin/destination expansion (it worked)
 sum(data$mil) 
 expanded$TenYear<-signif(expanded$Impact_year,digits=3)
-
+expanded<-subset(expanded, (TenYear>=1960&TenYear<2020))
+length(unique(expanded$Species))
+length(unique(expanded$Cost_ID))
+length(unique(expanded$Species))
+length(unique(expanded$Reference_ID))
 ### BASIC ANALYSES
 
-aggregate(mil~Destin_cont,data=expanded,FUN=sum)
-aggregate(mil~Origin_cont,data=expanded,FUN=sum)
+receive<-aggregate(mil~Destin_cont,data=expanded,FUN=sum)
+saveRDS(receive, file="received.RDS")
+given<-aggregate(mil~Origin_cont,data=expanded,FUN=sum)
+saveRDS(given, file="given.RDS")
 aggregate(mil~Origin_cont*Destin_cont,data=expanded,FUN=sum)
 
 flow2<-aggregate(mil~Origin_cont*Destin_cont+Species,data=expanded,FUN=sum)
@@ -71,14 +77,15 @@ flow3<-flow2 %>%
   mutate(N = N / n()) # number of species qualified per origin/destination
 byspp<-aggregate(N~Origin_cont*Destin_cont,data=flow3,FUN=sum)
 colnames(byspp)[3]<-"num"
-aggregate(num~Destin_cont,data=byspp,FUN=sum)
-aggregate(num~Origin_cont,data=byspp,FUN=sum)
+receive_spp<-aggregate(num~Destin_cont,data=byspp,FUN=sum)
+saveRDS(receive_spp, "receive_spp.RDS")
+given_spp<-aggregate(num~Origin_cont,data=byspp,FUN=sum)
+saveRDS(given_spp, "given_spp.RDS")
 aggregate(num~Origin_cont*Destin_cont,data=byspp,FUN=sum)
 
 
 
 region <- unique(expanded$Origin_cont)
-expanded<-subset(expanded, (TenYear>=1960&TenYear<2020))
 tempo <- unique(expanded$TenYear)
 
 df<-aggregate(mil~Origin_cont*Destin_cont+Species+TenYear,data=expanded,FUN=sum)
@@ -332,7 +339,7 @@ invacost_sub<-invacost_sub[,c(1,3,18,28,46)]
 invacost_sub<-unique(data.frame(invacost_sub))
 sample<-invacost_sub%>%group_by(Geographic_region)%>%summarize_at('Cost_ID', n_distinct)
 sample2<-invacost_sub%>%group_by(Geographic_region)%>%summarize_at('Cost_estimate_per_year_2017_USD_exchange_rate', sum, na.rm=T)
-sample2<-merge(sample2,invacost_per_spp, by="Geographic_region")
+sample2<-merge(sample2,invacost_per_reg, by="Geographic_region")
 sample2<-sample2%>%mutate(prop=Cost_estimate_per_year_2017_USD_exchange_rate.x/Cost_estimate_per_year_2017_USD_exchange_rate.y)
 library(ggplot2)
 
