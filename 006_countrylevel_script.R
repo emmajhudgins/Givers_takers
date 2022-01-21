@@ -64,6 +64,7 @@ expanded<-expanded %>%
   mutate(mil = mil / n()) # cost qualified by #origins and #destinations using 'N' qualifier
 
 expanded$TenYear<-signif(expanded$Impact_year,digits=3)
+expanded<-subset(expanded, (TenYear>=1960&TenYear<2020))
 
 expanded<-subset(expanded, destin_code!='NA')
 expanded<-subset(expanded, origin_code!='NA')
@@ -320,7 +321,6 @@ alldata<-merge(alldata, n_refs)
 n_refs<-expanded%>%group_by(TenYear, origin_code)%>%summarize_at("Reference_ID", n_distinct)
 colnames(n_refs)[3]<-'Reference_ID_origin'
 alldata<-merge(alldata, n_refs)
-alldata<-subset(alldata, (TenYear>=1960&TenYear<2020))
 
 for (i in 1:nrow(alldata))
 {
