@@ -8,6 +8,25 @@ island_nations<-read.csv('island_nations.csv')
 origin<-read.csv('givers_takers_doublecheck.csv')
 origin<-subset(origin, Continents !="UNK")
 origin<-subset(origin, grepl("spp", origin$Species)==F)
+origin<-subset(origin, grepl("sp\\.", origin$Species)==F)
+
+#2022 updates
+# new species to examine after database update
+data_new<-read.csv('InvaCost_database_v4.1.csv')
+data_new<-subset(data_new, Probable_starting_year_adjusted>=1960)
+data_new<-subset(data_new, Probable_starting_year_adjusted<2019)
+data_new<-subset(data_new, Method_reliability=="High")
+data_new<-subset(data_new, Implementation=="Observed")
+new_spp<-unique(data_new$Species)
+new_spp<-new_spp[which(new_spp%in%origin$Species==F)]
+new_spp<-new_spp[grepl('\\/', new_spp)==F]
+data_unk<-subset(data_new, Species%in%new_spp)
+data_unk<-subset(data_unk, grepl("spp", data_unk$Species)==F)
+data_unk<-subset(data_unk, grepl("sp\\.", data_unk$Species)==F)
+data_unk<-data_unk[,13:21]
+data_unk<-unique.data.frame(data_unk)
+write.csv(data_unk,file="new_species_4.1.csv", row.names=F)
+        
 ##Correct for some remaining unrecognized ISO3C countries, Emma updated such that any overseas territory that is closer to another continent has its own country code and is affiliated with the closer continent.
 origin$Countries<-gsub("Baleares", "Spain",origin$Countries )
 origin$Countries<-gsub("Is\\.", "Islands",origin$Countries )
