@@ -19,15 +19,15 @@ options(scipen=999)
 
 ### PREP by continent
 
-data<-read.csv("invacost_origin_expanded_DN.csv") # continent column manually fixed by Dat Nguyen
+data<-read.csv("invacost_origin_expanded_DN_fourpointone.csv") # continent column manually fixed by Dat Nguyen
 data$origin<-NA
 for (i in 1:nrow(data))
 {
-  data$origin[i]<-paste(colnames(data)[32:37][which(data[i,32:37]==1)], collapse=";")
+  data$origin[i]<-paste(colnames(data)[33:38][which(data[i,33:38]==1)], collapse=";")
 }
 
-data<-data[,c(1:31, 283:284)]
-colnames(data)[32:33]<-c("Destin_cont", "Origin_cont")
+data<-data[,c(1:32, 283:284)]
+colnames(data)[33:34]<-c("Destin_cont", "Origin_cont")
 data$Origin_cont[which(data$Species=='Ephestia kuehniella')]<-"AS"
 data$Origin_cont[which(data$Species=='Rumex lunaria')]<-"EUR"
 data$Origin_cont[which(data$Species=='Thaumetopoea processionea')]<-"EUR"
@@ -38,7 +38,19 @@ data <- data[!is.na(data$Cost_estimate_per_year_2017_USD_exchange_rate),] # blan
 data$mil<-data$Cost_estimate_per_year_2017_USD_exchange_rate/1000000
 sum(data$mil) # aggregate cost (US$ millions)
 data$N <- 1:nrow(data) # unique identifier for qualification below
-
+data$TenYear<-signif(data$Impact_year,digits=3)
+data<-subset(data, (TenYear>=1960&TenYear<2020))
+length(unique(data$Species))
+length(unique(data$Cost_ID))
+length(unique(data$Species))
+length(unique(data$Reference_ID))
+domesticated<-c('Felis catus', 'Canis lupus', 'Ovis aries', 'Camelus dromedarius','Sus scrofa','Equus caballus','Equus asinus', 'Mustela furo','Capra hircus', "Bos taurus")
+domesticated[which(domesticated%in%data$Species==F)]
+data<-subset(data, Species%in%domesticated==F)
+length(unique(data$Species))
+length(unique(data$Cost_ID))
+length(unique(data$Species))
+length(unique(data$Reference_ID))
 # Dividing costs among multiple origins
 
 expanded<-data %>% 
@@ -55,12 +67,9 @@ expanded<-expanded %>%
 
 sum(expanded$mil) # same cost as before origin/destination expansion (it worked)
 sum(data$mil) 
-expanded$TenYear<-signif(expanded$Impact_year,digits=3)
-expanded<-subset(expanded, (TenYear>=1960&TenYear<2020))
-length(unique(expanded$Species))
-length(unique(expanded$Cost_ID))
-length(unique(expanded$Species))
-length(unique(expanded$Reference_ID))
+unique(expanded$Origin_cont)
+unique(expanded$Destin_cont)
+
 ### BASIC ANALYSES
 
 receive<-aggregate(mil~Destin_cont,data=expanded,FUN=sum)
