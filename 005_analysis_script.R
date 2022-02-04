@@ -19,14 +19,14 @@ options(scipen=999)
 
 ### PREP by continent
 
-data<-read.csv("invacost_origin_expanded_DN_fourpointone.csv") # continent column manually fixed by Dat Nguyen
+data<-read.csv("invacost_origin_expanded_fourpointone_DN2.csv") # continent column manually fixed by Dat Nguyen
 data$origin<-NA
 for (i in 1:nrow(data))
 {
   data$origin[i]<-paste(colnames(data)[33:38][which(data[i,33:38]==1)], collapse=";")
 }
 
-data<-data[,c(1:32, 283:284)]
+data<-data[,c(1:32, 283,285)]
 colnames(data)[33:34]<-c("Destin_cont", "Origin_cont")
 data$Origin_cont[which(data$Species=='Ephestia kuehniella')]<-"AS"
 data$Origin_cont[which(data$Species=='Rumex lunaria')]<-"EUR"
@@ -40,7 +40,6 @@ sum(data$mil) # aggregate cost (US$ millions)
 data$N <- 1:nrow(data) # unique identifier for qualification below
 data$TenYear<-signif(data$Impact_year,digits=3)
 data<-subset(data, (TenYear>=1960&TenYear<2020))
-length(unique(data$Species))
 length(unique(data$Cost_ID))
 length(unique(data$Species))
 length(unique(data$Reference_ID))
@@ -49,7 +48,6 @@ domesticated[which(domesticated%in%data$Species==F)]
 data<-subset(data, Species%in%domesticated==F)
 length(unique(data$Species))
 length(unique(data$Cost_ID))
-length(unique(data$Species))
 length(unique(data$Reference_ID))
 # Dividing costs among multiple origins
 
@@ -85,7 +83,10 @@ flow3<-flow2 %>%
   group_by(Species) %>%
   mutate(N = N / n()) # number of species qualified per origin/destination
 byspp<-aggregate(N~Origin_cont*Destin_cont,data=flow3,FUN=sum)
+bycost<-aggregate(mil~Origin_cont*Destin_cont,data=flow3,FUN=sum)
 colnames(byspp)[3]<-"num"
+saveRDS(byspp, file="flows_species.RDS")
+saveRDS(bycost, file="flows_cost.RDS")
 receive_spp<-aggregate(num~Destin_cont,data=byspp,FUN=sum)
 saveRDS(receive_spp, "receive_spp.RDS")
 given_spp<-aggregate(num~Origin_cont,data=byspp,FUN=sum)
@@ -303,17 +304,18 @@ n_refs<-expanded%>%group_by(TenYear, Origin_cont)%>%summarize_at("Reference_ID",
 Give<-merge(Give, n_refs)
 Give<-merge(Give, lpi, "Origin_cont")
 library(mgcv)
-m<-gam(log(Give$cost)~log(Give_spp$spp)+s((Give$TenYear), k=5)+log(Give$frac_2+1)+log(Give$frac_3+1)+log(Give$comb_mean+1)+log(Give$Reference_ID), select=T,method='GCV.Cp')
-
-
+m<-gam(log(Give$cost)~s((Give$TenYear), k=5)+log(Give$frac_2+1)+log(Give$frac_3+1)+log(Give$comb_mean+1), select=T,method='GCV.Cp')
+#n_spp and reference_ID removed due to high concurvity (captured in annual trend)
+plot(m, xlab="Decade", ylab="Decadal smoother")
 lpi$Destin_cont<-c("AF", "SA", "NAm", "AS", "EUR", "OC")
 
 Take_spp<-merge(Take_spp, lpi, "Destin_cont")
 
 n_refs<-expanded%>%group_by(TenYear,Destin_cont)%>%summarize_at("Reference_ID", n_distinct)
 Take_spp<-merge(Take_spp, n_refs)
-m2<-gam(log(Take$cost)~log(Take_spp$spp)+s(log(Take_spp$TenYear), k=5)+log(Take_spp$frac_2+1)+log(Take_spp$frac_3+1)+log(Take_spp$comb_mean+1)+log(Take_spp$Reference_ID),select=T, method='GCV.Cp')
+m2<-gam(log(Take$cost)~s((Take_spp$TenYear), k=5)+log(Take_spp$frac_2+1)+log(Take_spp$frac_3+1)+log(Take_spp$comb_mean+1),select=T, method='GCV.Cp')
 summary(m2)
+plot(m2, xlab="Decade", ylab="Decadal smoother")
 
 
 Take_cost<-log(aggregate(mil~Destin_cont,data=expanded,FUN=sum)$mil)
@@ -326,33 +328,33 @@ abline(0,1)
 plot(log(Take$cost)~predict(m2))
 abline(0,1)
 
-library(invacost)
-data(invacost)
-invacost<-subset(invacost,Method_reliability=="High" )
-invacost<-subset(invacost,Implementation=="Observed" )
-invacost_sub<-subset(invacost, Species=="Diverse/Unspecified")
-length(grep("spp\\.", invacost$Species))
-invacost_sub<-bind_rows(invacost_sub, invacost[grep("spp\\.", invacost$Species),])
-length(grep("Global",invacost_sub$Geographic_region))
+full_data<-read.csv('InvaCost_database_v4.1.csv')
+full_data<-subset(full_data,Method_reliability=="High" )
+full_data<-subset(full_data,Implementation=="Observed" )
+invacost_sub<-subset(full_data, Species=="Diverse/Unspecified")
+length(grep("spp\\.", full_data$Species))
+invacost_sub<-bind_rows(invacost_sub, full_data[grep("spp\\.", full_data$Species),])
 
-data<-read.csv("invacost_origin_expanded_DN.csv")[,2:4] # continent column manually fixed by Dat Nguyen
-invacost_per_reg<-invacost%>%group_by(Geographic_region)%>%summarize_at('Cost_estimate_per_year_2017_USD_exchange_rate', sum, na.rm=T)
+data<-expanded[,2:4]# continent column manually fixed by Dat Nguyen
+invacost_per_reg<-full_data%>%group_by(Geographic_region)%>%summarize_at('Cost_estimate_per_year_2017_USD_exchange_rate', sum, na.rm=T)
 data<-unique.data.frame(data)
-invacost_sub2<-merge(invacost, data, by=c("Species"), all.x=T)
-invacost_sub2<-subset(invacost_sub2, is.na(Cost_ID.y))
-invacost_sub2<-invacost_sub2[,1:65]
-colnames(invacost_sub2)[c(2,4)]<-colnames(invacost_sub)[c(1,3)]
+invacost_sub2<-merge(full_data, data, by=c("Species", "Cost_ID"), all.x=T)
+invacost_sub2<-subset(invacost_sub2, is.na(Reference_ID.y))
+invacost_sub2<-invacost_sub2[,1:66]
+colnames(invacost_sub2)[c(5)]<-colnames(invacost_sub)[c(5)]
 length(unique(invacost_sub2$Species))
 invacost_sub<-bind_rows(invacost_sub, invacost_sub2)
-invacost_sub<-invacost_sub[,c(1,3,18,28,46)]
+invacost_sub<-invacost_sub[,c(2,4,19,29,47)]
 invacost_sub<-unique(data.frame(invacost_sub))
+length(unique(invacost_sub$Species))
+
 sample<-invacost_sub%>%group_by(Geographic_region)%>%summarize_at('Cost_ID', n_distinct)
 sample2<-invacost_sub%>%group_by(Geographic_region)%>%summarize_at('Cost_estimate_per_year_2017_USD_exchange_rate', sum, na.rm=T)
 sample2<-merge(sample2,invacost_per_reg, by="Geographic_region")
 sample2<-sample2%>%mutate(prop=Cost_estimate_per_year_2017_USD_exchange_rate.x/Cost_estimate_per_year_2017_USD_exchange_rate.y)
 library(ggplot2)
 
-
-ggplot(data=sample2, aes(y=prop, x=reorder(Geographic_region, -prop), fill=reorder(Geographic_region, -prop)))+geom_bar(stat="identity")+theme_classic()+ylab("Proportion unspecific costs")+xlab(NULL)+scale_fill_discrete(labels=paste0(sample$Geographic_region, ", $", round(sample2$Cost_estimate_per_year_2017_USD_exchange_rate.x/1000000, digits=2), ", (", sample$Cost_ID, ")"))+scale_x_discrete(labels=NULL)+guides(fill=guide_legend(title="Geographic region"))+theme(axis.ticks=element_blank())
+###Emma stopped rerunning here, because the proportion levels are going above 1 so there must be a bug
+ggplot(data=sample2, aes(y=prop, x=reorder(Geographic_region, -prop), fill=reorder(Geographic_region, -prop)))+geom_bar(stat="identity")+theme_classic()+ylab("Proportion unspecific costs")+xlab(label=NULL)+scale_fill_discrete(labels=paste0(sample$Geographic_region, ", $", round(sample2$Cost_estimate_per_year_2017_USD_exchange_rate.x/1000000, digits=2), ", (", sample$Cost_ID, ")"))+guides(fill=guide_legend(title="Geographic region"))+scale_x_discrete(labels=sample$Geographic_region)+theme(axis.ticks=element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
 
        
