@@ -303,21 +303,28 @@ lpi$frac_3[which(is.na(lpi$frac_3))]<-0
 n_refs<-expanded%>%group_by(TenYear, Origin_cont)%>%summarize_at("Reference_ID", n_distinct)
 Give<-merge(Give, n_refs)
 Give<-merge(Give, lpi, "Origin_cont")
-library(mgcv)
-m<-gam(log(Give$cost)~s((Give$TenYear), k=5)+log(Give$frac_2+1)+log(Give$frac_3+1)+log(Give$comb_mean+1), select=T,method='GCV.Cp')
+Give$spp<-Give_spp$spp
+Give$logcost<-log(Give$cost+1)
+m<-glm((Give$cost)~(Give$TenYear)+(Give$frac_2)+(Give$frac_3)+(Give$Reference_ID)+(Give$spp), family="poisson")
+m<-gbm.step(data=Give, gbm.x=c(2,4,19,24,28), gbm.y=29, family="gaussian", bag.fraction=0.85, learning.rate = 0.003, n.trees=30, n.folds=5)
+summary(m)
+plot(Give$logcost~predict(m, type="response", n.trees=m$n.trees))
+abline(0,1)
 #n_spp and reference_ID removed due to high concurvity (captured in annual trend)
-plot(m, xlab="Decade", ylab="Decadal smoother")
 lpi$Destin_cont<-c("AF", "SA", "NAm", "AS", "EUR", "OC")
 
 Take_spp<-merge(Take_spp, lpi, "Destin_cont")
 
 n_refs<-expanded%>%group_by(TenYear,Destin_cont)%>%summarize_at("Reference_ID", n_distinct)
 Take_spp<-merge(Take_spp, n_refs)
-m2<-gam(log(Take$cost)~s((Take_spp$TenYear), k=5)+log(Take_spp$frac_2+1)+log(Take_spp$frac_3+1)+log(Take_spp$comb_mean+1),select=T, method='GCV.Cp')
+pca<-prcomp(cbind(Take_spp$spp, Take_spp$Reference_ID, Take_spp$TenYear), scale=T)
+Take_spp$Cost<-Take$cost
+library(dismo)
+Take_spp$logcost<-log(Take_spp$Cost+1)
+m2<-gbm.step(data=Take_spp, gbm.x=c(2,3,18,23,28), gbm.y=30, family="gaussian", bag.fraction=0.85, learning.rate = 0.002, n.trees=30, n.folds=5)
 summary(m2)
-plot(m2, xlab="Decade", ylab="Decadal smoother")
-
-
+plot(Take_spp$logcost~predict(m2, type="response", n.trees=m2$n.trees))
+abline(0,1)
 Take_cost<-log(aggregate(mil~Destin_cont,data=expanded,FUN=sum)$mil)
 Give_cost<-log(aggregate(mil~Origin_cont,data=expanded,FUN=sum)$mil)
 
@@ -331,6 +338,13 @@ abline(0,1)
 full_data<-read.csv('InvaCost_database_v4.1.csv')
 full_data<-subset(full_data,Method_reliability=="High" )
 full_data<-subset(full_data,Implementation=="Observed" )
+full_data<-subset(full_data, Probable_starting_year_adjusted>=1960)
+full_data<-subset(full_data, Probable_ending_year_adjusted<=2019)
+full_data<-subset(full_data, Species%in%domesticated==F)
+viruses<-read.csv('givers_takers_doublecheck_fourpointone.csv')
+viruses<-unique(viruses$Species[which(viruses$Disease.Agent..to.remove.==1)])
+full_data<-subset(full_data, Species%in%viruses==F)
+full_data<-subset(full_data, grepl("Unit",full_data$Spatial_scale)==F)
 invacost_sub<-subset(full_data, Species=="Diverse/Unspecified")
 length(grep("spp\\.", full_data$Species))
 invacost_sub<-bind_rows(invacost_sub, full_data[grep("spp\\.", full_data$Species),])
@@ -338,10 +352,8 @@ invacost_sub<-bind_rows(invacost_sub, full_data[grep("spp\\.", full_data$Species
 data<-expanded[,2:4]# continent column manually fixed by Dat Nguyen
 invacost_per_reg<-full_data%>%group_by(Geographic_region)%>%summarize_at('Cost_estimate_per_year_2017_USD_exchange_rate', sum, na.rm=T)
 data<-unique.data.frame(data)
-invacost_sub2<-merge(full_data, data, by=c("Species", "Cost_ID"), all.x=T)
-invacost_sub2<-subset(invacost_sub2, is.na(Reference_ID.y))
+invacost_sub2<-subset(full_data, Species%in%data$Species==F)
 invacost_sub2<-invacost_sub2[,1:66]
-colnames(invacost_sub2)[c(5)]<-colnames(invacost_sub)[c(5)]
 length(unique(invacost_sub2$Species))
 invacost_sub<-bind_rows(invacost_sub, invacost_sub2)
 invacost_sub<-invacost_sub[,c(2,4,19,29,47)]

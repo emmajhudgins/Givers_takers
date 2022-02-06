@@ -23,14 +23,14 @@ library(wbstats)
 
 ### PREP by continent
 
-data<-read.csv("invacost_origin_expanded_DN.csv") # continent column manually fixed by Dat Nguyen
+data<-read.csv("invacost_origin_expanded_fourpointone_DN2.csv") # continent column manually fixed by Dat Nguyen
 data$origin<-NA
 for (i in 1:nrow(data))
 {
-  data$origin[i]<-paste(colnames(data)[32:37][which(data[i,32:37]==1)], collapse=";")
+  data$origin[i]<-paste(colnames(data)[33:38][which(data[i,33:38]==1)], collapse=";")
 }
 
-data<-data[,c(1:31, 38:267)]
+data<-data[,c(1:32, 39:268, 282:285)]
 data<-data[,-(which(colnames(data)=="NA."))]
 
 data$origin_code<-"NA"
@@ -38,15 +38,26 @@ for (i in 1:nrow(data))
 {
   if(length(which(data[i,]==1))>0)
   {
-    data$origin_code[i]<-paste(colnames(data)[which(data[i,32:260]==1)+31],collapse=';')
+    data$origin_code[i]<-paste(colnames(data)[which(data[i,33:261]==1)+32],collapse=';')
   }
 }
 data$destin_code<-sapply(data$Official_country,FUN=function(x){paste(countrycode(unlist(strsplit(x, '/')),'country.name', 'iso3c'), collapse=';')})
 data <- data[!(data$origin_code==""),] # blank origins (i.e. pathogens) omitted
+data <- data[!((data$origin_code)=="NA"),] # blank origins (i.e. pathogens) omitted
+
 data <- data[!is.na(data$Cost_estimate_per_year_2017_USD_exchange_rate),] # blank costs removed
 
 data$mil<-data$Cost_estimate_per_year_2017_USD_exchange_rate/1000000
 sum(data$mil) # aggregate cost (US$ millions)
+
+data$TenYear<-signif(data$Impact_year,digits=3)
+data<-subset(data, (TenYear>=1960&TenYear<2020))
+domesticated<-c('Felis catus', 'Canis lupus', 'Ovis aries', 'Camelus dromedarius','Sus scrofa','Equus caballus','Equus asinus', 'Mustela furo','Capra hircus', "Bos taurus")
+domesticated[which(domesticated%in%data$Species==F)]
+data<-subset(data, Species%in%domesticated==F)
+length(unique(data$Reference_ID))
+length(unique(data$Species))
+
 data$N <- 1:nrow(data) # unique identifier for qualification below
 
 # Dividing costs among multiple origins
@@ -63,8 +74,6 @@ expanded<-expanded %>%
   group_by(N) %>%
   mutate(mil = mil / n()) # cost qualified by #origins and #destinations using 'N' qualifier
 
-expanded$TenYear<-signif(expanded$Impact_year,digits=3)
-expanded<-subset(expanded, (TenYear>=1960&TenYear<2020))
 
 expanded<-subset(expanded, destin_code!='NA')
 expanded<-subset(expanded, origin_code!='NA')
@@ -80,7 +89,7 @@ length(unique(expanded$destin_code))
 
 receivers<-aggregate(mil~destin_code,data=expanded,FUN=sum)
 givers<-aggregate(mil~origin_code,data=expanded,FUN=sum)
-top_pairs<-aggregate(mil~origin_code*destin_code,data=expanded,FUN=sum)
+top_pairs<-aggregate(mil~origin_code*destin_code,data=expanded,FUN=sum, na.rm=T)
 
 flow2<-aggregate(mil~origin_code*destin_code+Species,data=expanded,FUN=sum)
 flow2<-flow2 %>%
@@ -207,10 +216,13 @@ socioeco_dat$origin_code<-countrycode(socioeco_dat$origin_code,'country.name', '
 socioeco_dat$destin_code<-countrycode(socioeco_dat$destin_code,'country.name', 'iso3c')
 socioeco_dat<-socioeco_dat%>%group_by(origin_code, destin_code)%>%summarize_at(c('Distance', 'FTA', "CCH", "CL", "CB"), max)
 expanded<-left_join(expanded, socioeco_dat, by=c('origin_code', 'destin_code'))
+expanded2<-subset(expanded, is.na(expanded$FTA))
+expanded2%>%group_by(origin_code, destin_code)%>%summarize_at('FTA', sum)
 expanded$FTA[which(is.na(expanded$FTA))]<-0
 expanded$CCH[which(is.na(expanded$CCH))]<-0
 expanded$CB[which(is.na(expanded$CB))]<-0
 expanded$CL[which(is.na(expanded$CL))]<-0
+length(unique(expanded$Cost_ID[which(is.na(expanded$Distance))]))
 expanded$Distance[which(is.na(expanded$Distance))]<-mean(expanded$Distance, na.rm=T)
 
 origin_countries<-colnames(data)[32:260]
@@ -270,7 +282,9 @@ sr_tab$code<-countrycode(sr_tab$Country, 'country.name', 'iso3c')
 sr_tab$tot_sr<-rowSums(sr_tab[,2:7], na.rm=T)
 alldata$sr_orig<-sr_tab$tot_sr[match(alldata$origin_code,sr_tab$code)]
 alldata$sr_dest<-sr_tab$tot_sr[match(alldata$destin_code,sr_tab$code)]
+length(which(is.na(alldata$sr_orig))) #96
 alldata$sr_orig[which(is.na(alldata$sr_orig))]<-mean(alldata$sr_orig, na.rm=T)
+length(which(is.na(alldata$sr_dest))) #42
 alldata$sr_dest[which(is.na(alldata$sr_dest))]<-mean(alldata$sr_dest, na.rm=T)
 given<-alldata%>%group_by(origin_code, TenYear)%>%summarize_at('mil', sum, na.rm=T)
 colnames(given)[3]<-"totalgivenTenYear"
@@ -285,7 +299,9 @@ area<-area[,c('iso3c','AG.LND.TOTL.K2')]
 colnames(area)[1]<-'origin_code'
 alldata<-merge(alldata, area, by='origin_code')
 colnames(alldata)[17]<-'area.i'
+length(which(is.na(alldata$area.i)))
 alldata$area.i[which(is.na(alldata$area.i))]<-mean(alldata$area.i, na.rm=T)
+length(which(is.na(alldata$area.j)))
 alldata$area.j[which(is.na(alldata$area.j))]<-mean(alldata$area.j, na.rm=T)
 
 
@@ -321,6 +337,10 @@ alldata<-merge(alldata, n_refs)
 n_refs<-expanded%>%group_by(TenYear, origin_code)%>%summarize_at("Reference_ID", n_distinct)
 colnames(n_refs)[3]<-'Reference_ID_origin'
 alldata<-merge(alldata, n_refs)
+length(which(is.nan(alldata$pop.i)))#1
+length(which(is.nan(alldata$pop.j)))#0
+length(which(is.nan(alldata$gdp.i)))#367
+length(which(is.nan(alldata$gdp.j)))#0
 
 for (i in 1:nrow(alldata))
 {
@@ -354,9 +374,6 @@ length(unique(c(alldata$origin_code,alldata$destin_code)))
 alldata$origin_code<-as.factor(alldata$origin_code)
 alldata$destin_code<-as.factor(alldata$destin_code)
 levels(alldata$destin_code)<-levels(alldata$origin_code)
-alldata<-alldata %>% 
-  complete(origin_code, destin_code,TenYear) %>%
-  union(alldata)
 
 # m<-gam(log(alldata$mil)~log(alldata$n_spp)+s(log(alldata$TenYear), k=5)+s(log(alldata$sr_orig+1), k=3)+s(log(alldata$sr_dest+1), k=3)+s(log(alldata$trade+1), k=3)+s((alldata$GDP.i+1), k=3)+s((alldata$GDP.j+1), k=3)+s((alldata$Pop.i+1), k=3)+s((alldata$Pop.j+1), k=3)+s(log(alldata$Distance+1), k=3)+ s(log(alldata$totalgivenTenYear), k=3)+s(log(alldata$Reference_ID), k=3), select=T,method='GCV.Cp')
 
@@ -374,4 +391,4 @@ plot(log(alldata$mil)~predict(m2))
 abline(0,1)
 saveRDS(m, file="../output/countrylevelgam.RDS")
 write.csv(alldata, file="alldata_pluspreds.csv", row.names=F)
-
+plot(m2, xlab="Decade", ylab="Decadal smoother")
