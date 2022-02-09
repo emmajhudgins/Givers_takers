@@ -59,7 +59,9 @@ length(unique(data$Reference_ID))
 length(unique(data$Species))
 
 data$N <- 1:nrow(data) # unique identifier for qualification below
-
+# data$n_continent<-rowSums(data[,33:38])
+# data$n_country<-rowSums(data[,39:267])
+# length(unique(data$Species[which(data$n_continent>data$n_country)]))
 # Dividing costs among multiple origins
 
 expanded<-data %>% 
@@ -339,7 +341,7 @@ colnames(n_refs)[3]<-'Reference_ID_origin'
 alldata<-merge(alldata, n_refs)
 length(which(is.nan(alldata$pop.i)))#1
 length(which(is.nan(alldata$pop.j)))#0
-length(which(is.nan(alldata$gdp.i)))#367
+length(which(is.nan(alldata$gdp.i)))#372
 length(which(is.nan(alldata$gdp.j)))#0
 
 for (i in 1:nrow(alldata))
