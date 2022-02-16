@@ -24,6 +24,7 @@ library(wbstats)
 ### PREP by continent
 
 data<-read.csv("invacost_origin_expanded_fourpointone_DN2.csv") # continent column manually fixed by Dat Nguyen
+
 data$origin<-NA
 for (i in 1:nrow(data))
 {
@@ -32,7 +33,6 @@ for (i in 1:nrow(data))
 
 data<-data[,c(1:32, 39:268, 282:285)]
 data<-data[,-(which(colnames(data)=="NA."))]
-
 data$origin_code<-"NA"
 for (i in 1:nrow(data))
 {
@@ -52,6 +52,7 @@ sum(data$mil) # aggregate cost (US$ millions)
 
 data$TenYear<-signif(data$Impact_year,digits=3)
 data<-subset(data, (TenYear>=1960&TenYear<2020))
+
 domesticated<-c('Felis catus', 'Canis lupus', 'Ovis aries', 'Camelus dromedarius','Sus scrofa','Equus caballus','Equus asinus', 'Mustela furo','Capra hircus', "Bos taurus")
 domesticated[which(domesticated%in%data$Species==F)]
 data<-subset(data, Species%in%domesticated==F)
@@ -76,9 +77,10 @@ expanded<-expanded %>%
   group_by(N) %>%
   mutate(mil = mil / n()) # cost qualified by #origins and #destinations using 'N' qualifier
 
-
 expanded<-subset(expanded, destin_code!='NA')
 expanded<-subset(expanded, origin_code!='NA')
+
+
 
 length(unique(expanded$Species))
 length(unique(expanded$Cost_ID))
@@ -92,6 +94,16 @@ length(unique(expanded$destin_code))
 receivers<-aggregate(mil~destin_code,data=expanded,FUN=sum)
 givers<-aggregate(mil~origin_code,data=expanded,FUN=sum)
 top_pairs<-aggregate(mil~origin_code*destin_code,data=expanded,FUN=sum, na.rm=T)
+
+# receivers_missing<-receivers[order(receivers$mil, decreasing=T)[1:10],]
+# receivers_missing$Country<-countrycode(receivers_missing$destin_code,'iso3c','country.name')
+# pdf('../output/Missing_receivers.pdf')
+# ggplot(data=receivers_missing, aes(x=reorder(Country,mil), y=mil))+
+#   coord_flip()+
+#   geom_bar(stat="identity")+theme_classic()+ylab("Top 10 receivers (millions US$)")+
+#   xlab(label="")+
+#   theme(axis.ticks=element_blank(), axis.text.x=element_text(size=10),legend.position = "none")
+# dev.off()
 
 flow2<-aggregate(mil~origin_code*destin_code+Species,data=expanded,FUN=sum)
 flow2<-flow2 %>%

@@ -348,7 +348,6 @@ full_data<-subset(full_data, grepl("Unit",full_data$Spatial_scale)==F)
 invacost_sub<-subset(full_data, Species=="Diverse/Unspecified")
 length(grep("spp\\.", full_data$Species))
 invacost_sub<-bind_rows(invacost_sub, full_data[grep("spp\\.", full_data$Species),])
-
 data<-expanded[,2:4]# continent column manually fixed by Dat Nguyen
 invacost_per_reg<-full_data%>%group_by(Geographic_region)%>%summarize_at('Cost_estimate_per_year_2017_USD_exchange_rate', sum, na.rm=T)
 data<-unique.data.frame(data)
@@ -366,7 +365,14 @@ sample2<-merge(sample2,invacost_per_reg, by="Geographic_region")
 sample2<-sample2%>%mutate(prop=Cost_estimate_per_year_2017_USD_exchange_rate.x/Cost_estimate_per_year_2017_USD_exchange_rate.y)
 library(ggplot2)
 
-###Emma stopped rerunning here, because the proportion levels are going above 1 so there must be a bug
-ggplot(data=sample2, aes(y=prop, x=reorder(Geographic_region, -prop), fill=reorder(Geographic_region, -prop)))+geom_bar(stat="identity")+theme_classic()+ylab("Proportion unspecific costs")+xlab(label=NULL)+scale_fill_discrete(labels=paste0(sample$Geographic_region, ", $", round(sample2$Cost_estimate_per_year_2017_USD_exchange_rate.x/1000000, digits=2), ", (", sample$Cost_ID, ")"))+guides(fill=guide_legend(title="Geographic region"))+scale_x_discrete(labels=sample$Geographic_region)+theme(axis.ticks=element_blank(), axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
-
+pdf('../output/Missing_costs.pdf')
+ggplot(data=sample2, aes(y=prop, x=reorder(Geographic_region,prop)))+
+  geom_bar(stat="identity")+theme_classic()+
+  ylab(label="Proportion of missing costs")+
+  xlab(label=NULL)+
+  coord_flip()+
+  scale_x_discrete(labels=paste0(sample2$Geographic_region, ", $", round(sample2$Cost_estimate_per_year_2017_USD_exchange_rate.x/1000000, digits=2), ", (", sample$Cost_ID, ")"))+
+  theme(axis.ticks=element_blank(), axis.text.x=element_text(size=10),legend.position = "none")
+dev.off()
+       
        
