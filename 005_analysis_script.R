@@ -74,7 +74,7 @@ receive<-aggregate(mil~Destin_cont,data=expanded,FUN=sum)
 saveRDS(receive, file="received.RDS")
 given<-aggregate(mil~Origin_cont,data=expanded,FUN=sum)
 saveRDS(given, file="given.RDS")
-aggregate(mil~Origin_cont*Destin_cont,data=expanded,FUN=sum)
+flows<-aggregate(mil~Origin_cont*Destin_cont,data=expanded,FUN=sum)
 
 flow2<-aggregate(mil~Origin_cont*Destin_cont+Species,data=expanded,FUN=sum)
 flow2<-flow2 %>%
@@ -292,48 +292,6 @@ pdf(file='../output/sTwist_receivers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
 
-lpi<-readRDS('~/Downloads/test_continent_red.rds') # need to change how central america is coded here
-lpi$Origin_cont<-c("AF", "SA", "NAm", "AS", "EUR", "OC")
-lpi$frac_1[which(is.na(lpi$frac_1))]<-0
-lpi$frac_2[which(is.na(lpi$frac_2))]<-0
-lpi$frac_3[which(is.na(lpi$frac_3))]<-0
-
-
-
-n_refs<-expanded%>%group_by(TenYear, Origin_cont)%>%summarize_at("Reference_ID", n_distinct)
-Give<-merge(Give, n_refs)
-Give<-merge(Give, lpi, "Origin_cont")
-Give$spp<-Give_spp$spp
-Give$logcost<-log(Give$cost+1)
-m<-glm((Give$cost)~(Give$TenYear)+(Give$frac_2)+(Give$frac_3)+(Give$Reference_ID)+(Give$spp), family="poisson")
-m<-gbm.step(data=Give, gbm.x=c(2,4,19,24,28), gbm.y=29, family="gaussian", bag.fraction=0.85, learning.rate = 0.003, n.trees=30, n.folds=5)
-summary(m)
-plot(Give$logcost~predict(m, type="response", n.trees=m$n.trees))
-abline(0,1)
-#n_spp and reference_ID removed due to high concurvity (captured in annual trend)
-lpi$Destin_cont<-c("AF", "SA", "NAm", "AS", "EUR", "OC")
-
-Take_spp<-merge(Take_spp, lpi, "Destin_cont")
-
-n_refs<-expanded%>%group_by(TenYear,Destin_cont)%>%summarize_at("Reference_ID", n_distinct)
-Take_spp<-merge(Take_spp, n_refs)
-pca<-prcomp(cbind(Take_spp$spp, Take_spp$Reference_ID, Take_spp$TenYear), scale=T)
-Take_spp$Cost<-Take$cost
-library(dismo)
-Take_spp$logcost<-log(Take_spp$Cost+1)
-m2<-gbm.step(data=Take_spp, gbm.x=c(2,3,18,23,28), gbm.y=30, family="gaussian", bag.fraction=0.85, learning.rate = 0.002, n.trees=30, n.folds=5)
-summary(m2)
-plot(Take_spp$logcost~predict(m2, type="response", n.trees=m2$n.trees))
-abline(0,1)
-Take_cost<-log(aggregate(mil~Destin_cont,data=expanded,FUN=sum)$mil)
-Give_cost<-log(aggregate(mil~Origin_cont,data=expanded,FUN=sum)$mil)
-
-cor.test(log(Take_cost),log(Give_cost)) #only 6 data points
-
-plot(log(Give$cost)~predict(m))
-abline(0,1)
-plot(log(Take$cost)~predict(m2))
-abline(0,1)
 
 full_data<-read.csv('InvaCost_database_v4.1.csv')
 full_data<-subset(full_data,Method_reliability=="High" )
@@ -364,14 +322,13 @@ sample2<-invacost_sub%>%group_by(Geographic_region)%>%summarize_at('Cost_estimat
 sample2<-merge(sample2,invacost_per_reg, by="Geographic_region")
 sample2<-sample2%>%mutate(prop=Cost_estimate_per_year_2017_USD_exchange_rate.x/Cost_estimate_per_year_2017_USD_exchange_rate.y)
 library(ggplot2)
-
+sample2$label<-paste0(sample2$Geographic_region, ", $", round(sample2$Cost_estimate_per_year_2017_USD_exchange_rate.x/1000000, digits=2), ", (", sample$Cost_ID, ")")
 pdf('../output/Missing_costs.pdf')
-ggplot(data=sample2, aes(y=prop, x=reorder(Geographic_region,prop)))+
+ggplot(data=sample2, aes(y=prop, x=reorder(label,prop)))+
   geom_bar(stat="identity")+theme_classic()+
   ylab(label="Proportion of missing costs")+
   xlab(label=NULL)+
   coord_flip()+
-  scale_x_discrete(labels=paste0(sample2$Geographic_region, ", $", round(sample2$Cost_estimate_per_year_2017_USD_exchange_rate.x/1000000, digits=2), ", (", sample$Cost_ID, ")"))+
   theme(axis.ticks=element_blank(), axis.text.x=element_text(size=10),legend.position = "none")
 dev.off()
        

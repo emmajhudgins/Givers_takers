@@ -11,6 +11,8 @@ options(scipen=999)
 library(rvest)
 library(mgcv)
 library(wbstats)
+library(cepiigeodist)
+
 
 
 # As well as Emma's prior filters...
@@ -228,18 +230,56 @@ trade<-trade[-163,]
 colnames(socioeco_dat)[15:16]<-c('origin_code', 'destin_code')
 socioeco_dat$origin_code<-countrycode(socioeco_dat$origin_code,'country.name', 'iso3c')
 socioeco_dat$destin_code<-countrycode(socioeco_dat$destin_code,'country.name', 'iso3c')
-socioeco_dat<-socioeco_dat%>%group_by(origin_code, destin_code)%>%summarize_at(c('Distance', 'FTA', "CCH", "CL", "CB"), max)
+socioeco_dat<-socioeco_dat%>%group_by(origin_code, destin_code)%>%summarize_at(c( 'FTA', "CCH", "CL", "CB"), max)
+data(dist_cepii)
+colnames(dist_cepii)[1:2]<-c('origin_code', 'destin_code')
+socioeco_dat<-merge(socioeco_dat,dist_cepii, by=c('origin_code', 'destin_code'))
+socioeco_dat<-socioeco_dat[,c(1:3,7,9,11,15)]
+colnames(socioeco_dat)[4:7]<-c("CB", "CL", "CCH", "Distance")
 expanded<-left_join(expanded, socioeco_dat, by=c('origin_code', 'destin_code'))
-expanded2<-subset(expanded, is.na(expanded$FTA))
-expanded2%>%group_by(origin_code, destin_code)%>%summarize_at('FTA', sum)
+colnames(socioeco_dat)[1:2]<-colnames(socioeco_dat)[2:1]
+
+for (i in which(is.na(expanded$Distance)))
+{
+  if (length(which(dist_cepii$origin_code==expanded$destin_code[i]& which(dist_cepii$destin_code==expanded$origin_code[i])))>0){
+  expanded$Distance[i]<-dist_cepii$dist[which(dist_cepii$origin_code==expanded$destin_code[i]& which(dist_cepii$destin_code==expanded$origin_code[i]))]
+  }
+}
+for (i in which(is.na(expanded$CL)))
+{
+  if (length(which(dist_cepii$origin_code==expanded$destin_code[i]& which(dist_cepii$destin_code==expanded$origin_code[i])))>0){
+    expanded$CL[i]<-dist_cepii$comlang_ethno[which(dist_cepii$origin_code==expanded$destin_code[i]& which(dist_cepii$destin_code==expanded$origin_code[i]))]
+  }
+}
+for (i in which(is.na(expanded$CCH)))
+{
+  if (length(which(dist_cepii$origin_code==expanded$destin_code[i]& which(dist_cepii$destin_code==expanded$origin_code[i])))>0){
+    expanded$CCH[i]<-dist_cepii$comcol[which(dist_cepii$origin_code==expanded$destin_code[i]& which(dist_cepii$destin_code==expanded$origin_code[i]))]
+  }
+}
+for (i in which(is.na(expanded$CB)))
+{
+  if (length(which(dist_cepii$origin_code==expanded$destin_code[i]& which(dist_cepii$destin_code==expanded$origin_code[i])))>0){
+    expanded$CB[i]<-dist_cepii$contig[which(dist_cepii$origin_code==expanded$destin_code[i]& which(dist_cepii$destin_code==expanded$origin_code[i]))]
+  }
+}
+gravity<-readRDS('Gravity_V202102.Rds')
+colnames(gravity)
+gravity<-gravity[,c(2:3,63)]
+gravity<-gravity%>%group_by(iso3_o, iso3_d)%>%summarize_at('rta',max, na.rm=T)
+colnames(gravity)[1:2]<-c('origin_code', 'destin_code')
+expanded<-expanded[,-271]
+expanded<-left_join(expanded, gravity, by=c('origin_code', 'destin_code'))
+colnames(expanded)[275]<-c("FTA")
 expanded$FTA[which(is.na(expanded$FTA))]<-0
 expanded$CCH[which(is.na(expanded$CCH))]<-0
 expanded$CB[which(is.na(expanded$CB))]<-0
 expanded$CL[which(is.na(expanded$CL))]<-0
-length(unique(expanded$Cost_ID[which(is.na(expanded$Distance))]))
+length(unique(paste(expanded$origin_code[which(is.na(expanded$Distance))], expanded$destin_code[which(is.na(expanded$Distance))])))
+
 expanded$Distance[which(is.na(expanded$Distance))]<-mean(expanded$Distance, na.rm=T)
 
-origin_countries<-colnames(data)[32:260]
+origin_countries<-colnames(data)[33:261]
 destin_countries<-countrycode(unique(data$Official_country), 'country.name', 'iso3c')
 
 ### check out top trade associations
@@ -391,7 +431,7 @@ levels(alldata$destin_code)<-levels(alldata$origin_code)
 
 # m<-gam(log(alldata$mil)~log(alldata$n_spp)+s(log(alldata$TenYear), k=5)+s(log(alldata$sr_orig+1), k=3)+s(log(alldata$sr_dest+1), k=3)+s(log(alldata$trade+1), k=3)+s((alldata$GDP.i+1), k=3)+s((alldata$GDP.j+1), k=3)+s((alldata$Pop.i+1), k=3)+s((alldata$Pop.j+1), k=3)+s(log(alldata$Distance+1), k=3)+ s(log(alldata$totalgivenTenYear), k=3)+s(log(alldata$Reference_ID), k=3), select=T,method='GCV.Cp')
 
-m2<-gam(log(alldata$mil)~log(alldata$n_spp)+s((alldata$TenYear), k=5)+(log(alldata$sr_orig+1))+(log(alldata$sr_dest+1))+(log(alldata$trade+1))+(log(alldata$gdp.i+1))+(log(alldata$gdp.j+1))+(log(alldata$pop.i+1))+(log(alldata$pop.j+1))+((alldata$Distance))+log(alldata$totalgivenTenYear)+log(alldata$area.i)+log(alldata$area.j)+log(alldata$trade_historical+1)+log(alldata$Reference_ID)+log(alldata$Reference_ID_origin)+alldata$CB+alldata$CL+alldata$FTA+alldata$CCH)
+m2<-gam(log(alldata$mil)~log(alldata$n_spp)+s((alldata$TenYear), k=5)+(log(alldata$sr_orig+1))+(log(alldata$sr_dest+1))+(log(alldata$trade+1))+(log(alldata$gdp.i+1))+(log(alldata$gdp.j+1))+(log(alldata$pop.i+1))+(log(alldata$pop.j+1))+(log(alldata$Distance))+log(alldata$totalgivenTenYear)+log(alldata$area.i)+log(alldata$area.j)+log(alldata$trade_historical+1)+log(alldata$Reference_ID)+log(alldata$Reference_ID_origin)+alldata$CB+alldata$CL+alldata$FTA+alldata$CCH)
 cor(alldata[,5:22])
 cor(alldata[,5:22])[order(cor(alldata[,5:22]), decreasing = T)][19:30]
 # m3<-gam((alldata$mil)~(alldata$n_spp)+s((alldata$TenYear), k=5)+s((alldata$sr_orig+1), k=3)+s((alldata$sr_dest+1), k=3)+s((alldata$trade+1), k=3)+s((alldata$GDP.i+1), k=3)+s((alldata$GDP.j+1), k=3)+s((alldata$Pop.i+1), k=3)+s((alldata$Pop.j+1), k=3)+s((alldata$Distance+1), k=3)+s(log(alldata$Reference_ID), k=3), select=T,method='GCV.Cp', family=poisson)

@@ -5,9 +5,6 @@
 rm(list=ls());gc()
 graphics.off()
 
-setwd("./invacost_givers_takers/")
-
-pout = "./output/"
 
 #### BODY ####
 
@@ -23,9 +20,9 @@ if(0){
   invacost2 = invacost2[is.na(invacost2$Geographic_region2.code),]
   out = rbind(ref, invacost2[,c(1,2,3)])
   
-  write.csv(out, paste0(pout, "country-origin-ref_4p1.csv"), row.names = F)
+  write.csv(out, "country-origin-ref_4p1_DN.csv", row.names = F)
 }else{
-  out = read.csv(paste0(pout, "country-origin-ref_4p1_DN.csv"), stringsAsFactors = F)
+  out = read.csv("country-origin-ref_4p1_DN.csv", stringsAsFactors = F)
 }
 
 # Fill in invacost
@@ -44,4 +41,4 @@ for(i in wh){
   invacost$Geographic_region2.code[i] = gsub("North America","NAm", invacost$Geographic_region2.code[i])
   invacost$Geographic_region2.code[i] = gsub("Asia","AS", invacost$Geographic_region2.code[i])
 }
-write.csv(invacost, paste0(pout, "invacost_origin_expanded_fourpointone_DN2.csv"), row.names = F)
+write.csv(invacost, "invacost_origin_expanded_fourpointone_DN2.csv", row.names = F)
