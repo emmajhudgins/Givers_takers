@@ -36,3 +36,5 @@ vignettes/*.pdf
 rsconnect/
 .DS_Store
 data/Gravity_V202102.Rds
+data/.DS_Store
+.DS_Store

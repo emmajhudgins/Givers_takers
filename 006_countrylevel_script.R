@@ -1,12 +1,10 @@
 rm(list=ls())
 require(dplyr)
 require(tidyr)
-require(here)
 require(ggplot2)
 require(mgsub)
 require(countrycode)
 require(gridExtra)
-setwd(paste0(here(), "/data/"))
 options(scipen=999)
 library(rvest)
 library(mgcv)
@@ -25,7 +23,7 @@ library(cepiigeodist)
 
 ### PREP by continent
 
-data<-read.csv("invacost_origin_expanded_fourpointone_DN2.csv") # continent column manually fixed by Dat Nguyen
+data<-read.csv("data/invacost_origin_expanded_fourpointone_DN2.csv") # continent column manually fixed by Dat Nguyen
 
 data$origin<-NA
 for (i in 1:nrow(data))
@@ -82,6 +80,14 @@ expanded<-expanded %>%
 expanded<-subset(expanded, destin_code!='NA')
 expanded<-subset(expanded, origin_code!='NA')
 
+# we do not distinguish invaders from hong kong, taiwan and macau to those from china
+expanded$origin_code<-gsub("MAC", "CHN", expanded$origin_code)
+expanded$origin_code<-gsub("HKG", "CHN", expanded$origin_code)
+expanded$origin_code<-gsub("TWN", "CHN", expanded$origin_code)
+
+expanded$destin_code<-gsub("MAC", "CHN", expanded$destin_code)
+expanded$destin_code<-gsub("HKG", "CHN", expanded$destin_code)
+expanded$destin_code<-gsub("TWN", "CHN", expanded$destin_code)
 
 
 length(unique(expanded$Species))
@@ -96,6 +102,9 @@ length(unique(expanded$destin_code))
 receivers<-aggregate(mil~destin_code,data=expanded,FUN=sum)
 givers<-aggregate(mil~origin_code,data=expanded,FUN=sum)
 top_pairs<-aggregate(mil~origin_code*destin_code,data=expanded,FUN=sum, na.rm=T)
+saveRDS(receivers, 'output/receivers.RDS')
+saveRDS(givers, 'output/givers.RDS')
+saveRDS(top_pairs, 'output/top_pairs.RDS')
 
 # receivers_missing<-receivers[order(receivers$mil, decreasing=T)[1:10],]
 # receivers_missing$Country<-countrycode(receivers_missing$destin_code,'iso3c','country.name')
@@ -140,7 +149,7 @@ Take_spp <- df %>% group_by(destin_code, TenYear) %>% summarise(spp=sum(N))
 
 ##link with sTwist first record database
 
-stwist<-read.table('sTwist_database.csv', header=T)
+stwist<-read.table('~/Downloads/SInAS_AlienSpeciesDB_2.4.1.csv', header=T)
 
 colnames(stwist)[3]<-'Species'
 colnames(stwist)[1]<-"Official_country"
@@ -168,7 +177,7 @@ stwist_cont<-stwist_cont %>%
   group_by(Species) %>%
   mutate(N = N / n()) # number of species qualified per origin/destination
 
-socioeco_dat<-readRDS('soc_econ_country.rds') # From Sardain, Leung et al. Nature Sustainability
+socioeco_dat<-readRDS('data/soc_econ_country.rds') # From Sardain, Leung et al. Nature Sustainability
 socioeco_dat<-subset(socioeco_dat, IHS.i%in%countrycode(unique(expanded$destin_code), 'iso3c', 'country.name'))
 socioeco_dat<-subset(socioeco_dat, IHS.j%in%countrycode(unique(expanded$destin_code), 'iso3c', 'country.name'))
 
@@ -224,8 +233,8 @@ socioeco_dat<-subset(socioeco_dat, IHS.j%in%countrycode(unique(expanded$destin_c
 #    }
 #  }
 # saveRDS(trade_historical, "../output/trade_historical_averaged.RDS")
-trade_historical<-readRDS('../../biosecurity_invacost/data/trade_historical_averaged.RDS')
-trade<-readRDS('../../biosecurity_invacost/data/trade_averaged.RDS')
+trade_historical<-readRDS('../biosecurity_invacost/data/trade_historical_averaged.RDS')
+trade<-readRDS('../biosecurity_invacost/data/trade_averaged.RDS')
 trade<-trade[-163,]
 colnames(socioeco_dat)[15:16]<-c('origin_code', 'destin_code')
 socioeco_dat$origin_code<-countrycode(socioeco_dat$origin_code,'country.name', 'iso3c')
@@ -263,7 +272,7 @@ for (i in which(is.na(expanded$CB)))
     expanded$CB[i]<-dist_cepii$contig[which(dist_cepii$origin_code==expanded$destin_code[i]& which(dist_cepii$destin_code==expanded$origin_code[i]))]
   }
 }
-gravity<-readRDS('Gravity_V202102.Rds')
+gravity<-readRDS('data/Gravity_V202102.Rds')
 colnames(gravity)
 gravity<-gravity[,c(2:3,63)]
 gravity<-gravity%>%group_by(iso3_o, iso3_d)%>%summarize_at('rta',max, na.rm=T)
@@ -291,8 +300,8 @@ colnames(top10pairs)<-c("From", 'To')
 top10pairs<-as.data.frame(top10pairs)
 top10pairs$Vol<-unlist(trade[order(trade, decreasing=T)[1:10]])
 
-
-
+colnames(trade_historical)<-colnames(trade)[1:92]
+rownames(trade_historical)<-rownames(trade)
 historical_pairs<-arrayInd(order(trade_historical, decreasing=T)[1:10], dim(trade_historical))
 
 historical_pairs[,1]<-rownames(trade)[historical_pairs[,1]]
@@ -343,13 +352,14 @@ alldata$sr_dest[which(is.na(alldata$sr_dest))]<-mean(alldata$sr_dest, na.rm=T)
 given<-alldata%>%group_by(origin_code, TenYear)%>%summarize_at('mil', sum, na.rm=T)
 colnames(given)[3]<-"totalgivenTenYear"
 alldata<-merge(alldata, given, by=c("origin_code", "TenYear"))
-area<-wb_data("AG.LND.TOTL.K2", country=unique(alldata$destin_code), start_date = 2018, end_date=2018)
-area<-area[,c('iso3c','AG.LND.TOTL.K2')]
+
+area<-wb_data("AG.SRF.TOTL.K2", country=unique(alldata$destin_code), start_date = 2018, end_date=2018)
+area<-area[,c('iso3c','AG.SRF.TOTL.K2')]
 colnames(area)[1]<-'destin_code'
 alldata<-merge(alldata, area, by='destin_code')
 colnames(alldata)[16]<-'area.j'
-area<-wb_data("AG.LND.TOTL.K2", country=unique(alldata$origin_code), start_date = 2018, end_date=2018)
-area<-area[,c('iso3c','AG.LND.TOTL.K2')]
+area<-wb_data("AG.SRF.TOTL.K2", country=unique(alldata$origin_code), start_date = 2018, end_date=2018)
+area<-area[,c('iso3c','AG.SRF.TOTL.K2')]
 colnames(area)[1]<-'origin_code'
 alldata<-merge(alldata, area, by='origin_code')
 colnames(alldata)[17]<-'area.i'
@@ -430,10 +440,19 @@ alldata$destin_code<-as.factor(alldata$destin_code)
 levels(alldata$destin_code)<-levels(alldata$origin_code)
 
 # m<-gam(log(alldata$mil)~log(alldata$n_spp)+s(log(alldata$TenYear), k=5)+s(log(alldata$sr_orig+1), k=3)+s(log(alldata$sr_dest+1), k=3)+s(log(alldata$trade+1), k=3)+s((alldata$GDP.i+1), k=3)+s((alldata$GDP.j+1), k=3)+s((alldata$Pop.i+1), k=3)+s((alldata$Pop.j+1), k=3)+s(log(alldata$Distance+1), k=3)+ s(log(alldata$totalgivenTenYear), k=3)+s(log(alldata$Reference_ID), k=3), select=T,method='GCV.Cp')
+biomes<-read.csv('~/Downloads/shared_biomes.csv')
+colnames(biomes)[1:2]<-c("origin_code", "destin_code")
+alldata<-merge(alldata, biomes, all.x=T, all.y=F)
 
-m2<-gam(log(alldata$mil)~log(alldata$n_spp)+s((alldata$TenYear), k=5)+(log(alldata$sr_orig+1))+(log(alldata$sr_dest+1))+(log(alldata$trade+1))+(log(alldata$gdp.i+1))+(log(alldata$gdp.j+1))+(log(alldata$pop.i+1))+(log(alldata$pop.j+1))+(log(alldata$Distance))+log(alldata$totalgivenTenYear)+log(alldata$area.i)+log(alldata$area.j)+log(alldata$trade_historical+1)+log(alldata$Reference_ID)+log(alldata$Reference_ID_origin)+alldata$CB+alldata$CL+alldata$FTA+alldata$CCH)
+m2<-gam(log(alldata$mil)~log(alldata$n_spp)+s((alldata$TenYear), k=5)+(log(alldata$sr_orig+1))+(log(alldata$sr_dest+1))+(log(alldata$trade+1))+(log(alldata$gdp.i+1))+(log(alldata$gdp.j+1))+(log(alldata$pop.i+1))+(log(alldata$pop.j+1))+(log(alldata$Distance))+log(alldata$totalgivenTenYear)+log(alldata$area.i)+log(alldata$area.j)+log(alldata$trade_historical+1)+log(alldata$Reference_ID)+log(alldata$Reference_ID_origin)+alldata$CB+alldata$CL+alldata$FTA+alldata$CCH+alldata$common_yn)
 cor(alldata[,5:22])
 cor(alldata[,5:22])[order(cor(alldata[,5:22]), decreasing = T)][19:30]
+
+climatezones<-read.csv('~/Downloads/shared_climate_zones.csv')
+colnames(climatezones)<-c("origin_code", "destin_code", 'lc2', 'nc2', 'cyn2')
+alldata<-merge(alldata, climatezones, all.x=T, all.y=F)
+
+m3<-gam(log(alldata$mil)~log(alldata$n_spp)+s((alldata$TenYear), k=5)+(log(alldata$sr_orig+1))+(log(alldata$sr_dest+1))+(log(alldata$trade+1))+(log(alldata$gdp.i+1))+(log(alldata$gdp.j+1))+(log(alldata$pop.i+1))+(log(alldata$pop.j+1))+(log(alldata$Distance))+log(alldata$totalgivenTenYear)+log(alldata$area.i)+log(alldata$area.j)+log(alldata$trade_historical+1)+log(alldata$Reference_ID)+log(alldata$Reference_ID_origin)+alldata$CB+alldata$CL+alldata$FTA+alldata$CCH+alldata$cyn2)
 # m3<-gam((alldata$mil)~(alldata$n_spp)+s((alldata$TenYear), k=5)+s((alldata$sr_orig+1), k=3)+s((alldata$sr_dest+1), k=3)+s((alldata$trade+1), k=3)+s((alldata$GDP.i+1), k=3)+s((alldata$GDP.j+1), k=3)+s((alldata$Pop.i+1), k=3)+s((alldata$Pop.j+1), k=3)+s((alldata$Distance+1), k=3)+s(log(alldata$Reference_ID), k=3), select=T,method='GCV.Cp', family=poisson)
 
 
@@ -443,6 +462,6 @@ summary(m2)
 plot(log(alldata$mil)~predict(m2))
 
 abline(0,1)
-saveRDS(m, file="../output/countrylevelgam.RDS")
-write.csv(alldata, file="alldata_pluspreds.csv", row.names=F)
+saveRDS(m, file="output/countrylevelgam.RDS")
+write.csv(alldata, file="data/alldata_pluspreds.csv", row.names=F)
 plot(m2, xlab="Decade", ylab="Decadal smoother")

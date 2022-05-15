@@ -1,12 +1,10 @@
 rm(list=ls())
 require(dplyr)
 require(tidyr)
-require(here)
 require(ggplot2)
 require(mgsub)
 require(countrycode)
 require(gridExtra)
-setwd(paste0(here(), "/data/"))
 options(scipen=999)
 
 # As well as Emma's prior filters...
@@ -19,7 +17,7 @@ options(scipen=999)
 
 ### PREP by continent
 
-data<-read.csv("invacost_origin_expanded_fourpointone_DN2.csv") # continent column manually fixed by Dat Nguyen
+data<-read.csv("data/invacost_origin_expanded_fourpointone_DN2.csv") # continent column manually fixed by Dat Nguyen
 data$origin<-NA
 for (i in 1:nrow(data))
 {
@@ -71,9 +69,9 @@ unique(expanded$Destin_cont)
 ### BASIC ANALYSES
 
 receive<-aggregate(mil~Destin_cont,data=expanded,FUN=sum)
-saveRDS(receive, file="received.RDS")
+saveRDS(receive, file="output/received.RDS")
 given<-aggregate(mil~Origin_cont,data=expanded,FUN=sum)
-saveRDS(given, file="given.RDS")
+saveRDS(given, file="output/given.RDS")
 flows<-aggregate(mil~Origin_cont*Destin_cont,data=expanded,FUN=sum)
 
 flow2<-aggregate(mil~Origin_cont*Destin_cont+Species,data=expanded,FUN=sum)
@@ -85,12 +83,12 @@ flow3<-flow2 %>%
 byspp<-aggregate(N~Origin_cont*Destin_cont,data=flow3,FUN=sum)
 bycost<-aggregate(mil~Origin_cont*Destin_cont,data=flow3,FUN=sum)
 colnames(byspp)[3]<-"num"
-saveRDS(byspp, file="flows_species.RDS")
-saveRDS(bycost, file="flows_cost.RDS")
+saveRDS(byspp, file="output/flows_species.RDS")
+saveRDS(bycost, file="output/flows_cost.RDS")
 receive_spp<-aggregate(num~Destin_cont,data=byspp,FUN=sum)
-saveRDS(receive_spp, "receive_spp.RDS")
+saveRDS(receive_spp, "output/receive_spp.RDS")
 given_spp<-aggregate(num~Origin_cont,data=byspp,FUN=sum)
-saveRDS(given_spp, "given_spp.RDS")
+saveRDS(given_spp, "output/given_spp.RDS")
 aggregate(num~Origin_cont*Destin_cont,data=byspp,FUN=sum)
 
 
@@ -152,11 +150,11 @@ for (reg in region_cd)
     theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("Cost")
   i=i+1
 }
-pdf(file='../output/invacost_givers.pdf')
+pdf(file='output/invacost_givers.pdf')
 par(oma=c(0,0,0,4))
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
-saveRDS(db, file="invacost_givers_data.RDS")
+saveRDS(db, file="output/invacost_givers_data.RDS")
 plots<-list()
 i=1
 for (reg in region_cd)
@@ -167,10 +165,10 @@ for (reg in region_cd)
     theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("Cost")
   i=i+1
 }
-pdf(file='../output/invacost_receivers.pdf')
+pdf(file='output/invacost_receivers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
-saveRDS(db2, file="invacost_takers_data.RDS")
+saveRDS(db2, file="output/invacost_takers_data.RDS")
 Give_spp <- df %>% group_by(Origin_cont, TenYear) %>% summarise(spp=sum(N))
 
 db3 <- data.frame(Give_spp[,c("Origin_cont", "TenYear", "spp")])
@@ -216,10 +214,10 @@ for (reg in region_cd)
     theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("No. Species")
   i=i+1
 }
-pdf(file='../output/invacost_spp_givers.pdf')
+pdf(file='output/invacost_spp_givers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
-saveRDS(db3, file="invacost_givers_spp.RDS")
+saveRDS(db3, file="output/invacost_givers_spp.RDS")
 plots<-list()
 i=1
 for (reg in region_cd)
@@ -230,12 +228,12 @@ for (reg in region_cd)
     theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("No. species")
   i=i+1
 }
-pdf(file='../output/invacost_spp_receivers.pdf')
+pdf(file='output/invacost_spp_receivers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
 
-saveRDS(db4, file="invacost_takers_spp.RDS")
-stwist<-read.table('sTwist_database.csv', header=T)
+saveRDS(db4, file="output/invacost_takers_spp.RDS")
+stwist<-read.table('data/sTwist_database.csv', header=T)
 
 colnames(stwist)[3]<-'Species'
 colnames(stwist)[1]<-"Official_country"
@@ -288,12 +286,12 @@ for (reg in region)
   i=i+1
 }
 
-pdf(file='../output/sTwist_receivers.pdf')
+pdf(file='output/sTwist_receivers.pdf')
 grid.arrange(plots[[1]],plots[[2]], plots[[3]], plots[[4]], plots[[5]], plots[[6]], ncol=2)
 dev.off()
 
 
-full_data<-read.csv('InvaCost_database_v4.1.csv')
+full_data<-read.csv('data/InvaCost_database_v4.1.csv')
 full_data<-subset(full_data,Method_reliability=="High" )
 full_data<-subset(full_data,Implementation=="Observed" )
 full_data<-subset(full_data, Probable_starting_year_adjusted>=1960)
@@ -323,7 +321,7 @@ sample2<-merge(sample2,invacost_per_reg, by="Geographic_region")
 sample2<-sample2%>%mutate(prop=Cost_estimate_per_year_2017_USD_exchange_rate.x/Cost_estimate_per_year_2017_USD_exchange_rate.y)
 library(ggplot2)
 sample2$label<-paste0(sample2$Geographic_region, ", $", round(sample2$Cost_estimate_per_year_2017_USD_exchange_rate.x/1000000, digits=2), ", (", sample$Cost_ID, ")")
-pdf('../output/Missing_costs.pdf')
+pdf('/output/Missing_costs.pdf')
 ggplot(data=sample2, aes(y=prop, x=reorder(label,prop)))+
   geom_bar(stat="identity")+theme_classic()+
   ylab(label="Proportion of missing costs")+
