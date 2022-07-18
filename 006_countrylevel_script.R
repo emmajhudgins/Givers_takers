@@ -146,6 +146,21 @@ Give_spp <- df %>% group_by(origin_code, TenYear) %>% summarise(spp=sum(N))
 
 Take_spp <- df %>% group_by(destin_code, TenYear) %>% summarise(spp=sum(N))
 
+# Net costs
+names(receivers)[names(receivers) == 'destin_code'] <- 'country'
+names(givers)[names(givers) == 'origin_code'] <- 'country'
+net_costs<-merge(givers, receivers, by = c("country"), all.x = TRUE)
+net_costs$net <- (net_costs$mil.x - ifelse(is.na(net_costs$mil.y),0,net_costs$mil.y))
+net_costs<-net_costs[order(net_costs$net), ]
+net_costs 
+
+table(sign(net_costs$net)) # Negative values = net receiver; Positive values = net sender
+
+sum(is.na(net_costs$mil.y))  # Number of countries that send costs (mil.x) but don't receive them (mil.y)
+
+# To reverse column name change so rest of script works
+names(receivers)[names(receivers) == 'country'] <- 'destin_code'
+names(givers)[names(givers) == 'country'] <- 'origin_code'
 
 ##link with sTwist first record database
 
