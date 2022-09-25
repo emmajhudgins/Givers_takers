@@ -102,9 +102,9 @@ length(unique(expanded$destin_code))
 receivers<-aggregate(mil~destin_code,data=expanded,FUN=sum)
 givers<-aggregate(mil~origin_code,data=expanded,FUN=sum)
 top_pairs<-aggregate(mil~origin_code*destin_code,data=expanded,FUN=sum, na.rm=T)
-saveRDS(receivers, 'output/receivers.RDS')
-saveRDS(givers, 'output/givers.RDS')
-saveRDS(top_pairs, 'output/top_pairs.RDS')
+# saveRDS(receivers, 'output/receivers.RDS')
+# saveRDS(givers, 'output/givers.RDS')
+# saveRDS(top_pairs, 'output/top_pairs.RDS')
 
 # receivers_missing<-receivers[order(receivers$mil, decreasing=T)[1:10],]
 # receivers_missing$Country<-countrycode(receivers_missing$destin_code,'iso3c','country.name')
@@ -469,9 +469,9 @@ alldata<-merge(alldata, climatezones, all.x=T, all.y=F)
 
 m3<-gam(log(alldata$mil)~log(alldata$n_spp)+s((alldata$TenYear), k=5)+(log(alldata$sr_orig+1))+(log(alldata$sr_dest+1))+(log(alldata$trade+1))+(log(alldata$gdp.i+1))+(log(alldata$gdp.j+1))+(log(alldata$pop.i+1))+(log(alldata$pop.j+1))+(log(alldata$Distance))+log(alldata$totalgivenTenYear)+log(alldata$area.i)+log(alldata$area.j)+log(alldata$trade_historical+1)+log(alldata$Reference_ID)+log(alldata$Reference_ID_origin)+alldata$CB+alldata$CL+alldata$FTA+alldata$CCH+alldata$cyn2)
 # m3<-gam((alldata$mil)~(alldata$n_spp)+s((alldata$TenYear), k=5)+s((alldata$sr_orig+1), k=3)+s((alldata$sr_dest+1), k=3)+s((alldata$trade+1), k=3)+s((alldata$GDP.i+1), k=3)+s((alldata$GDP.j+1), k=3)+s((alldata$Pop.i+1), k=3)+s((alldata$Pop.j+1), k=3)+s((alldata$Distance+1), k=3)+s(log(alldata$Reference_ID), k=3), select=T,method='GCV.Cp', family=poisson)
-
-
-summary(m2)
+alldata$cost_pub<-alldata$mil/alldata$Reference_ID
+m4<-gam(log(alldata$cost_pub)~log(alldata$n_spp)+s((alldata$TenYear), k=5)+(log(alldata$sr_orig+1))+(log(alldata$sr_dest+1))+(log(alldata$trade+1))+(log(alldata$gdp.i+1))+(log(alldata$gdp.j+1))+(log(alldata$pop.i+1))+(log(alldata$pop.j+1))+(log(alldata$Distance))+log(alldata$totalgivenTenYear)+log(alldata$area.i)+log(alldata$area.j)+log(alldata$trade_historical+1)+log(alldata$Reference_ID_origin)+alldata$CB+alldata$CL+alldata$FTA+alldata$CCH+alldata$common_yn)
+summary(m4)
 
 
 plot(log(alldata$mil)~predict(m2))
@@ -480,3 +480,6 @@ abline(0,1)
 saveRDS(m, file="output/countrylevelgam.RDS")
 write.csv(alldata, file="data/alldata_pluspreds.csv", row.names=F)
 plot(m2, xlab="Decade", ylab="Decadal smoother")
+library(mgcViz)
+b<-getViz(m2)
+plot(pterm(b,15), xlab="log(Number of References)", ylab="f(log(Number of References)")
