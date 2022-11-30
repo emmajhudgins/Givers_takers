@@ -69,27 +69,74 @@ unique(expanded$Destin_cont)
 ### BASIC ANALYSES
 
 receive<-aggregate(mil~Destin_cont,data=expanded,FUN=sum)
+receive_num<-expanded%>%group_by(Destin_cont)%>%summarize_at('Reference_ID', n_distinct)
+receive$mil_per_pub<-receive$mil/receive_num$Reference_ID
 saveRDS(receive, file="output/received.RDS")
 given<-aggregate(mil~Origin_cont,data=expanded,FUN=sum)
+given_num<-expanded%>%group_by(Origin_cont)%>%summarize_at('Reference_ID', n_distinct)
+given$mil_per_pub<-given$mil/given_num$Reference_ID
 saveRDS(given, file="output/given.RDS")
 flows<-aggregate(mil~Origin_cont*Destin_cont,data=expanded,FUN=sum)
 
 flow2<-aggregate(mil~Origin_cont*Destin_cont+Species,data=expanded,FUN=sum)
+flow2_num<-expanded%>%group_by(Origin_cont, Destin_cont, Species)%>%summarize_at('Reference_ID', n_distinct)
+flow2$mil_per_pub<-flow2$mil/flow2_num$Reference_ID
 flow2<-flow2 %>%
   mutate(N = 1) # qualifying factor
 flow3<-flow2 %>%
   group_by(Species) %>%
   mutate(N = N / n()) # number of species qualified per origin/destination
 byspp<-aggregate(N~Origin_cont*Destin_cont,data=flow3,FUN=sum)
-bycost<-aggregate(mil~Origin_cont*Destin_cont,data=flow3,FUN=sum)
+bycost<-aggregate(mil_per_pub~Origin_cont*Destin_cont,data=flow3,FUN=sum)
 colnames(byspp)[3]<-"num"
 saveRDS(byspp, file="output/flows_species.RDS")
-saveRDS(bycost, file="output/flows_cost.RDS")
+saveRDS(bycost, file="output/flows_cost_perpub.RDS")
 receive_spp<-aggregate(num~Destin_cont,data=byspp,FUN=sum)
 saveRDS(receive_spp, "output/receive_spp.RDS")
 given_spp<-aggregate(num~Origin_cont,data=byspp,FUN=sum)
 saveRDS(given_spp, "output/given_spp.RDS")
 aggregate(num~Origin_cont*Destin_cont,data=byspp,FUN=sum)
+
+flow<-aggregate(mil~Origin_cont*Destin_cont+Type_of_cost_merged,data=expanded,FUN=sum)
+flow<-flow%>%pivot_wider(values_from='mil',names_from='Type_of_cost_merged')
+flow<-flow%>%replace_na(list(Mixed=0,Damage=0,Management=0,Unspecified=0))
+flow$Mixed<-flow$Mixed+flow$Unspecified
+flow<-flow[,1:5]
+write.csv(flow,'flows_costtype.csv', row.names=F)
+
+flow<-aggregate(mil~Origin_cont+Type_of_cost_merged,data=expanded,FUN=sum)
+flow<-flow%>%pivot_wider(values_from='mil',names_from='Type_of_cost_merged')
+flow<-flow%>%replace_na(list(Mixed=0,Damage=0,Management=0,Unspecified=0))
+flow$Mixed<-flow$Mixed+flow$Unspecified
+flow<-flow[,1:4]
+write.csv(flow,'senders_costtype.csv', row.names=F)
+
+
+flow<-aggregate(mil~Destin_cont+Type_of_cost_merged,data=expanded,FUN=sum)
+flow<-flow%>%pivot_wider(values_from='mil',names_from='Type_of_cost_merged')
+flow<-flow%>%replace_na(list(Mixed=0,Damage=0,Management=0,Unspecified=0))
+flow$Mixed<-flow$Mixed+flow$Unspecified
+flow<-flow[,1:4]
+write.csv(flow,'receivers_costtype.csv', row.names=F)
+
+
+expanded$Impacted_sector[grep("\\/",expanded$Impacted_sector)]<-"Diverse"
+expanded$Impacted_sector[grep("Unspecified",expanded$Impacted_sector)]<-"Diverse"
+flow<-aggregate(mil~Origin_cont*Destin_cont+Impacted_sector,data=expanded,FUN=sum)
+flow<-flow%>%pivot_wider(values_from='mil',names_from='Impacted_sector')
+flow<-flow%>%replace_na(list(Diverse=0,`Authorities-Stakeholders`=0,Environment=0,Forestry=0, `Public and social welfare`=0, Health=0, Agriculture=0, Fishery=0))
+write.csv(flow,'flows_sector.csv', row.names=F)
+
+flow<-aggregate(mil~Origin_cont+Impacted_sector,data=expanded,FUN=sum)
+flow<-flow%>%pivot_wider(values_from='mil',names_from='Impacted_sector')
+flow<-flow%>%replace_na(list(Diverse=0,`Authorities-Stakeholders`=0,Environment=0,Forestry=0, `Public and social welfare`=0, Health=0, Agriculture=0, Fishery=0))
+write.csv(flow,'senders_sector.csv', row.names=F)
+
+
+flow<-aggregate(mil~Destin_cont+Impacted_sector,data=expanded,FUN=sum)
+flow<-flow%>%pivot_wider(values_from='mil',names_from='Impacted_sector')
+flow<-flow%>%replace_na(list(Diverse=0,`Authorities-Stakeholders`=0,Environment=0,Forestry=0, `Public and social welfare`=0, Health=0, Agriculture=0, Fishery=0))
+write.csv(flow,'receivers_sector.csv', row.names=F)
 
 
 
@@ -97,15 +144,17 @@ region <- unique(expanded$Origin_cont)
 tempo <- unique(expanded$TenYear)
 
 df<-aggregate(mil~Origin_cont*Destin_cont+Species+TenYear,data=expanded,FUN=sum)
+df_num<-expanded%>%group_by(Origin_cont, Destin_cont, Species, TenYear)%>%summarize_at('Reference_ID', n_distinct)
+df$pub<-df_num$Reference_ID
 df<-df %>%
   mutate(N = 1) # qualifying factor 
 df<-df %>%
   group_by(Species) %>%
   mutate(N = N / n()) # number of species qualified per origin/destination
 
-Give <- expanded %>% group_by(Origin_cont, TenYear) %>% summarise(cost=sum(mil))
+Give <- expanded %>% group_by(Origin_cont, TenYear) %>% summarise(cost_per_pub=sum(mil)/n_distinct(Reference_ID))
 
-db <- data.frame(Give[,c("Origin_cont", "TenYear", "cost")])
+db <- data.frame(Give[,c("Origin_cont", "TenYear", "cost_per_pub")])
 
 for (i in 1:length(region)){
   
@@ -116,13 +165,13 @@ for (i in 1:length(region)){
     tp <- tempo[j]
     if(isTRUE(tp %in% d_sub$TenYear))
       next
-    db <- add_row(db, Origin_cont = or_ct, TenYear = tp, cost = 0)
+    db <- add_row(db, Origin_cont = or_ct, TenYear = tp, cost_per_pub = 0)
   }
 }
 
 
-Take <- expanded %>% group_by(Destin_cont, TenYear) %>% summarise(cost=sum(mil))
-db2 <- data.frame(Take[,c("Destin_cont", "TenYear", "cost")])
+Take <- expanded %>% group_by(Destin_cont, TenYear) %>% summarise(cost_per_pub=sum(mil)/n_distinct(Reference_ID))
+db2 <- data.frame(Take[,c("Destin_cont", "TenYear", "cost_per_pub")])
 
 for (i in 1:length(region)){
   
@@ -133,7 +182,7 @@ for (i in 1:length(region)){
     tp <- tempo[j]
     if(isTRUE(tp %in% d_sub$TenYear))
       next
-    db2 <- add_row(db2, Destin_cont = or_ct, TenYear = tp, cost = 0)
+    db2 <- add_row(db2, Destin_cont = or_ct, TenYear = tp, cost_per_pub = 0)
   }
 }
 
@@ -145,9 +194,9 @@ i=1
 for (reg in region_cd)
 {
   
-  plots[[i]]<-ggplot(subset(db, Origin_cont==reg), aes(x=TenYear,y=cost))+
+  plots[[i]]<-ggplot(subset(db, Origin_cont==reg), aes(x=TenYear,y=cost_per_pub))+
     geom_histogram(stat="identity",color="black", fill="lightblue")+
-    theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("Cost")
+    theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("Cost per publication")
   i=i+1
 }
 pdf(file='output/invacost_givers.pdf')
@@ -160,9 +209,9 @@ i=1
 for (reg in region_cd)
 {
   
-  plots[[i]]<-ggplot(subset(db2, Destin_cont==reg), aes(x=TenYear,y=cost))+
+  plots[[i]]<-ggplot(subset(db2, Destin_cont==reg), aes(x=TenYear,y=cost_per_pub))+
     geom_histogram(stat="identity",color="black", fill="lightblue")+
-    theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("Cost")
+    theme_bw()+theme_classic()+labs(title=region_st[i])+xlab("Time")+ylab("Cost per publication")
   i=i+1
 }
 pdf(file='output/invacost_receivers.pdf')
@@ -242,7 +291,7 @@ stwist$eventDate<-as.numeric(stwist$eventDate) # use minimum first record date
 
 #Assign iso3c codes#
 stwist$code<-countrycode(stwist$Official_country, 'country.name', 'iso3c')
-continent<-read.csv('country-origin-ref_DN.csv')
+continent<-read.csv('data/country-origin-ref_4p1_DN.csv')
 continent$code<-countrycode(continent$Official_country, 'country.name', 'iso3c')
 stwist$Destin_cont<-continent$Geographic_region2[match(stwist$code,continent$code)]
 
@@ -330,4 +379,10 @@ ggplot(data=sample2, aes(y=prop, x=reorder(label,prop)))+
   theme(axis.ticks=element_blank(), axis.text.x=element_text(size=10),legend.position = "none")
 dev.off()
        
-       
+
+write.csv(given, './output/given.csv', row.names=F)
+write.csv(receive, './output/received.csv', row.names=F)
+
+
+write.csv(db, './output/invacost_givers_data.csv', row.names=F)
+write.csv(db2, './output/invacost_takers_data.csv', row.names=F)
