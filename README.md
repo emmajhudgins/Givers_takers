@@ -3,6 +3,7 @@ _Repo to accompany_
 in Nature Sustainability.
 
 ###  Emma J. Hudgins*, Ross N. Cuthbert*, Phillip J. Haubrock*, Nigel G. Taylor, Melina Kourantidou, Dat Nguyen, Alok Bang, Anna J. Turbelin, Desika Moodley, Elizabeta Briski, Syrmalenia G. Kotronaki, Franck Courchamp
+\* equivalent contribution
 
 > code written by Dat Nguyen and Emma J Hudgins
 
