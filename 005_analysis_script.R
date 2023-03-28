@@ -86,6 +86,10 @@ flow2<-flow2 %>%
 flow3<-flow2 %>%
   group_by(Species) %>%
   mutate(N = N / n()) # number of species qualified per origin/destination
+
+given_num
+write.csv(receive_num, 'pubs_per_receiving_cont.csv', row.names=F)
+
 byspp<-aggregate(N~Origin_cont*Destin_cont,data=flow3,FUN=sum)
 bycost<-aggregate(mil_per_pub~Origin_cont*Destin_cont,data=flow3,FUN=sum)
 colnames(byspp)[3]<-"num"
